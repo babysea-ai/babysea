@@ -1,6 +1,6 @@
 {
   "name": "babysea",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Official TypeScript SDK for the BabySea API. BabySea offers one API for image and video generation across multiple AI inference providers, with automatic failover and a unified schema.",
   "keywords": [
     "babysea",
@@ -69,13 +69,19 @@
     "badges": "node scripts/generate-badges.mjs",
     "prebuild": "node scripts/generate-badges.mjs",
     "build": "tsup",
-    "clean": "rm -rf node_modules dist",
+    "clean": "rm -rf .turbo node_modules dist",
+    "format": "prettier --check \"**/*.{mjs,ts,md,json}\"",
+    "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
+    "@kit/eslint-config": "workspace:*",
+    "@kit/prettier-config": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
     "badge-maker": "^5.0.2",
-    "tsup": "^8.5.1",
+    "tsup": "catalog:",
     "typescript": "^5.9.3"
-  }
+  },
+  "prettier": "@kit/prettier-config"
 }

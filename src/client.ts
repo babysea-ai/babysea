@@ -37,7 +37,7 @@ const REGION_URLS: Record<BabySeaRegion, string> = {
 const DEFAULT_BASE_URL = REGION_URLS.us;
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const SDK_VERSION = '1.0.0';
+const SDK_VERSION = '1.1.0';
 
 /**
  * BabySea API client
@@ -53,8 +53,8 @@ const SDK_VERSION = '1.0.0';
  * const eu = new BabySea({ apiKey: 'bye_...', region: 'eu' });
  *
  * // Generate an image
- * const result = await client.generate('{model_identifier}', {
- *   generation_prompt: 'A cute baby seal on the beach',
+ * const result = await client.generate('bfl/flux-schnell', {
+ *   generation_prompt: 'A baby seal plays in the Arctic',
  * });
  *
  * console.log(result.data.generation_id);
@@ -108,6 +108,7 @@ export class BabySea {
 
     /**
      * Available models
+     *
      * `GET /v1/library/models`
      */
     models: () => Promise<ApiResponse<LibraryModelsData>>;
@@ -202,17 +203,43 @@ export class BabySea {
    *
    * `GET /v1/estimate/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
-   * @param count - Number of generations to estimate (default 1).
+   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
+   * @param options.count - Number of generations to estimate (default 1).
+   * @param options.duration - Duration in seconds (video models only).
+   * @param options.resolution - Output resolution, e.g. `"1080p"` (resolution-priced video models only).
+   * @param options.audio - Whether to include audio pricing (audio-priced video models only).
    */
   async estimate(
-    model: string,
-    count?: number,
+    modelIdentifier: string,
+    options?: number | { count?: number; duration?: number; resolution?: string; audio?: boolean },
   ): Promise<ApiResponse<EstimateData>> {
-    const params = count !== undefined ? `?count=${count}` : '';
+    const params = new URLSearchParams();
+
+    if (typeof options === 'number') {
+      // Backwards-compatible: estimate(model, 5)
+      params.set('count', String(options));
+    } else if (options) {
+      if (options.count !== undefined) {
+        params.set('count', String(options.count));
+      }
+
+      if (options.duration !== undefined) {
+        params.set('duration', String(options.duration));
+      }
+
+      if (options.resolution !== undefined) {
+        params.set('resolution', options.resolution);
+      }
+
+      if (options.audio !== undefined) {
+        params.set('audio', String(options.audio));
+      }
+    }
+
+    const qs = params.toString();
     return this.request<EstimateData>(
       'GET',
-      `/v1/estimate/${model}${params}`,
+      `/v1/estimate/${modelIdentifier}${qs ? `?${qs}` : ''}`,
     );
   }
 
@@ -297,16 +324,16 @@ export class BabySea {
    *
    * `POST /v1/generate/image/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
+   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
    * @param params - Generation parameters. See {@link ImageGenerationParams}.
    */
   async generate(
-    model: string,
+    modelIdentifier: string,
     params: ImageGenerationParams,
   ): Promise<ApiResponse<ImageGenerationData>> {
     return this.request<ImageGenerationData>(
       'POST',
-      `/v1/generate/image/${model}`,
+      `/v1/generate/image/${modelIdentifier}`,
       params,
     );
   }
@@ -316,16 +343,16 @@ export class BabySea {
    *
    * `POST /v1/generate/video/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
+   * @param modelIdentifier - Model identifier (e.g. `"google/veo-2"`).
    * @param params - Generation parameters. See {@link VideoGenerationParams}.
    */
   async generateVideo(
-    model: string,
+    modelIdentifier: string,
     params: VideoGenerationParams,
   ): Promise<ApiResponse<VideoGenerationData>> {
     return this.request<VideoGenerationData>(
       'POST',
-      `/v1/generate/video/${model}`,
+      `/v1/generate/video/${modelIdentifier}`,
       params,
     );
   }
@@ -399,7 +426,23 @@ export class BabySea {
       const rateLimit = parseRateLimitHeaders(response.headers);
 
       if (!response.ok) {
-        const errorBody = (await response.json()) as ApiErrorBody;
+        let errorBody: ApiErrorBody;
+
+        try {
+          errorBody = (await response.json()) as ApiErrorBody;
+        } catch {
+          // Non-JSON error response (e.g. Cloudflare 502 HTML page)
+          errorBody = {
+            status: 'error',
+            error: {
+              code: `HTTP_${response.status}`,
+              type: 'api_error',
+              message: `HTTP ${response.status} ${response.statusText}`,
+              retryable: response.status >= 500,
+            },
+          };
+        }
+
         throw new BabySeaError(response.status, errorBody, rateLimit);
       }
 

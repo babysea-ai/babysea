@@ -135,6 +135,19 @@ export interface HealthCacheData {
 
 // ─── /v1/library/providers ───
 
+export interface BabySeaImplementation {
+  delivery_method: 'webhook_with_polling' | 'synchronous';
+  cancel_method: 'prediction_cancel_api' | 'queue_cancel_api' | null;
+  webhook_verification: 'hmac_sha256' | 'ed25519' | null;
+  error_mapping: 'bse_error_codes';
+  cost_tracking: 'per_generation_usd';
+  schema_conversion: 'unified_to_native';
+  failover_strategy: 'sequential_provider_chain';
+  health_monitoring: 'circuit_breaker';
+  supported_media_types: ('image' | 'video')[];
+  supported_models_total: number;
+}
+
 export interface ProviderProfile {
   provider_id: string;
   provider_name: string;
@@ -142,16 +155,7 @@ export interface ProviderProfile {
   provider_website: string;
   provider_docs: string;
   provider_status: string;
-  babysea_implementation: {
-    integration: {
-      delivery_method: string;
-      webhook_signature: string;
-      supports_cancel: boolean;
-      timeout_seconds: number;
-    };
-    capabilities: string[];
-    supported_models: string[];
-  };
+  babysea_implementation: BabySeaImplementation;
 }
 
 export interface LibraryProvidersData {
@@ -171,6 +175,8 @@ export interface ModelSchema {
   generation_duration?: { min: number; max: number };
   /** Supported output resolutions (resolution-priced video models only). */
   generation_resolution?: string[];
+  /** Whether audio generation is supported (audio-priced video models only). */
+  generation_generate_audio?: boolean;
 }
 
 export interface Model {
@@ -278,6 +284,8 @@ export interface EstimateData {
   cost_per_second?: number;
   /** Requested duration in seconds (only present for video models). */
   duration_seconds?: number;
+  /** Output resolution (only present for resolution-priced video models). */
+  resolution?: string;
   cost_per_generation: number;
   cost_total_consumed: number;
   credit_balance: number;
@@ -328,9 +336,10 @@ export interface Generation {
   // Metrics
   generation_metrics_total_time: number | null;
   generation_metrics_predict_time: number | null;
-  // Duration & resolution (video models only)
+  // Duration, resolution & audio (video models only)
   generation_duration?: number;
   generation_resolution?: string;
+  generation_generate_audio?: boolean;
   // Errors (only present on failure)
   generation_error?: string;
   generation_error_code?: string;
@@ -353,7 +362,7 @@ export interface ImageGenerationParams {
   /** Aspect ratio, e.g. `"1:1"`, `"16:9"`. */
   generation_ratio?: string;
 
-  /** Output format: `"png"`, `"jpeg"`, or `"webp"`. */
+  /** Output format: `"png"`, `"jpg"`, or `"webp"`. */
   generation_output_format?: string;
 
   /** Number of output images (1–N, model-dependent). */
@@ -366,16 +375,18 @@ export interface ImageGenerationParams {
    * Preferred inference provider order.
    *
    * Most models accept `"replicate, fal"` or `"fal, replicate"`.
-   * Some models also support additional providers such as BytePlus.
+   * Some models also support additional providers such as BytePlus or Cloudflare.
    * Use `client.library.models()` to check supported providers per model.
    *
    * When omitted, the model's default order is used.
    */
   generation_provider_order?:
+    | 'replicate'
     | 'replicate, fal'
     | 'fal, replicate'
     | 'byteplus, replicate, fal'
-    | 'byteplus, fal, replicate';
+    | 'byteplus, fal, replicate'
+    | 'cloudflare, replicate, fal';
 
   /** Model-specific parameters (varies per model). */
   [key: string]: unknown;
@@ -416,6 +427,9 @@ export interface VideoGenerationParams {
    */
   generation_resolution?: string;
 
+  /** Whether to generate audio. Required for audio-priced video models. */
+  generation_generate_audio?: boolean;
+
   /** Array of public URLs for input files (e.g. image-to-video). */
   generation_input_file?: string[];
 
@@ -429,6 +443,7 @@ export interface VideoGenerationParams {
    * When omitted, the model's default order is used.
    */
   generation_provider_order?:
+    | 'replicate'
     | 'replicate, fal'
     | 'fal, replicate'
     | 'byteplus, replicate, fal'

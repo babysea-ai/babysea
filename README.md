@@ -35,12 +35,12 @@ const client = new BabySea({
 });
 
 // Preview cost before generating
-const est = await client.estimate('{model_identifier}', 2);
+const est = await client.estimate('bfl/flux-schnell', 2);
 console.log(est.data.credit_balance_can_afford); // true
-console.log(est.data.cost_total_consumed);       // 0.102
+console.log(est.data.cost_total_consumed);       // 0.008
 
 // Generate an image
-const result = await client.generate('{model_identifier}', {
+const result = await client.generate('bfl/flux-schnell', {
   generation_prompt: 'A cute baby seal on the beach at golden hour',
   generation_ratio: '16:9',
   generation_output_format: 'png',
@@ -70,7 +70,7 @@ const client = new BabySea({
   region: 'us',
 
   /**
-   * Override the base URL entirely - for custom domains or self-hosted.
+   * Override the base URL entirely - for custom API domains (Enterprise plan).
    * Takes precedence over `region`.
    */
   baseUrl: 'https://acme.api.us.babysea.ai',
@@ -90,13 +90,13 @@ const client = new BabySea({
 ### `generate(model, params)` - Create an image generation
 
 ```ts
-const result = await client.generate('{model_identifier}', {
+const result = await client.generate('bfl/flux-schnell', {
   // Required
   generation_prompt: 'A serene Japanese garden in spring',
 
   // Optional
   generation_ratio: '16:9',            // '1:1' | '16:9' | '9:16' | '4:3' | '3:4'
-  generation_output_format: 'png',    // 'png' | 'jpeg' | 'webp'
+  generation_output_format: 'png',    // 'png' | 'jpg' | 'webp'
   generation_output_number: 1,         // number of output images
   generation_input_file: [             // input image URLs (for img2img models)
     'https://example.com/reference.jpg',
@@ -113,7 +113,7 @@ const { generation_id, generation_provider_order } = result.data;
 
 ```ts
 // Duration-only video model
-const result = await client.generateVideo('{model_identifier}', {
+const result = await client.generateVideo('google/veo-2', {
   // Required
   generation_prompt: 'A baby seal swimming in the ocean',
   generation_duration: 5, // seconds (range varies per model)
@@ -128,10 +128,18 @@ const result = await client.generateVideo('{model_identifier}', {
 });
 
 // Duration + resolution video model
-const hd = await client.generateVideo('{model_identifier}', {
+const hd = await client.generateVideo('bytedance/seedance-1-pro', {
   generation_prompt: 'Cinematic drone shot over a coral reef',
   generation_duration: 8,
   generation_resolution: '1080p', // required for resolution-priced models
+  generation_ratio: '16:9',
+});
+
+// Audio-priced video model
+const audio = await client.generateVideo('bytedance/seedance-1.5-pro', {
+  generation_prompt: 'A music video with rhythmic visuals',
+  generation_duration: 5,
+  generation_generate_audio: true, // required for audio-priced models
   generation_ratio: '16:9',
 });
 
@@ -140,16 +148,39 @@ const { generation_id, generation_provider_order } = result.data;
 
 ---
 
-### `estimate(model, count?)` - Preview cost before generating
+### `estimate(model, options?)` - Preview cost before generating
 
 ```ts
-const est = await client.estimate('{model_identifier}', 5);
+// Image model - estimate 5 generations
+const est = await client.estimate('bfl/flux-schnell', { count: 5 });
 
-est.data.cost_per_generation;       // 0.051 credits
-est.data.cost_total_consumed;       // 0.255 credits
+est.data.cost_per_generation;       // 0.004 credits
+est.data.cost_total_consumed;       // 0.020 credits
 est.data.credit_balance;            // 10.000
 est.data.credit_balance_can_afford;  // true
 est.data.credit_balance_max_affordable; // 196
+
+// Video model - estimate with duration
+const vid = await client.estimate('google/veo-2', { duration: 8 });
+
+// Resolution-priced video model - estimate with duration + resolution
+const hd = await client.estimate('bytedance/seedance-1-pro', {
+  duration: 8,
+  resolution: '1080p',
+});
+
+// Audio-priced video model - estimate with/without audio
+const withAudio = await client.estimate('bytedance/seedance-1.5-pro', {
+  duration: 5,
+  audio: true,
+});
+const noAudio = await client.estimate('bytedance/seedance-1.5-pro', {
+  duration: 5,
+  audio: false,
+});
+
+// Shorthand (backwards-compatible): estimate(model, count)
+const short = await client.estimate('bfl/flux-schnell', 5);
 ```
 
 ---
@@ -159,7 +190,7 @@ est.data.credit_balance_max_affordable; // 196
 ```ts
 const gen = await client.getGeneration('gen_01jh...');
 
-gen.data.generation_status;       // 'processing' | 'succeeded' | 'failed' | 'canceled'
+gen.data.generation_status;       // 'pending' | 'processing' | 'succeeded' | 'failed' | 'canceled'
 gen.data.generation_output_file;  // string[] of output URLs (when succeeded)
 ```
 
@@ -231,7 +262,7 @@ acct.data.account_is_personal;
 const bill = await client.billing();
 
 bill.data.billing_credit_balance;    // 42.500
-  bill.data.billing_plan;              // 'Scale'
+bill.data.billing_plan;              // 'Scale'
 bill.data.billing_period_ends_at;
 ```
 
@@ -306,7 +337,7 @@ const providers = await client.library.providers();
 import { BabySea, BabySeaError, BabySeaTimeoutError, BabySeaRetryError } from 'babysea';
 
 try {
-  await client.generate('{model_identifier}', {
+  await client.generate('bfl/flux-schnell', {
     generation_prompt: 'A rainy city street',
   });
 } catch (err) {
@@ -365,7 +396,7 @@ export async function POST(req: Request) {
   switch (payload.webhook_event) {
     case 'generation.completed':
       const urls = payload.webhook_data.generation_output_file;
-      // urls → string[] of output image URLs
+      // urls → string[] of output file URLs
       await saveToDatabase(payload.webhook_data.generation_id, urls);
       break;
 
@@ -462,9 +493,9 @@ All limits are per-account (shared across all API keys under the same account). 
 | `us` | `https://api.us.babysea.ai` |
 | `eu` | `https://api.eu.babysea.ai` |
 
-Custom API domains (Scale and Enterprise plans) are supported via the `baseUrl` option.
+Custom API domains (Enterprise plan) are supported via the `baseUrl` option.
 
-BabySea routes requests across all configured inference providers (Replicate, Fal, BytePlus) automatically with failover.
+BabySea routes requests across all configured inference providers (Replicate, Fal, BytePlus, Cloudflare) automatically with failover.
 
 ---
 
