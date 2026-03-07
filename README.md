@@ -1,6 +1,6 @@
 # BabySea
 
-Official TypeScript SDK for the [BabySea API](https://babysea.ai). BabySea offers one API for image and video generation across multiple AI inference providers, with automatic failover and a unified schema.
+Official TypeScript SDK for the [BabySea API](https://babysea.ai). BabySea is an orchestrated semantic layer for generative media.
 
 [![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org/) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 

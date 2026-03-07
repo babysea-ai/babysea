@@ -1,7 +1,7 @@
 {
   "name": "babysea",
-  "version": "1.2.0",
-  "description": "Official TypeScript SDK for the BabySea API. BabySea offers one API for image and video generation across multiple AI inference providers, with automatic failover and a unified schema.",
+  "version": "1.2.1",
+  "description": "Official TypeScript SDK for the BabySea API. BabySea is an orchestrated semantic layer for generative media.",
   "keywords": [
     "babysea",
     "ai",
