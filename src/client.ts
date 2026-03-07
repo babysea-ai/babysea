@@ -37,8 +37,6 @@ const REGION_URLS: Record<BabySeaRegion, string> = {
 const DEFAULT_BASE_URL = REGION_URLS.us;
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const SDK_VERSION = '1.1.0';
-
 /**
  * BabySea API client
  *
@@ -46,7 +44,7 @@ const SDK_VERSION = '1.1.0';
  * ```ts
  * import { BabySea } from 'babysea';
  *
- * // US region (default)
+ * // Explicit US region
  * const client = new BabySea({ apiKey: 'bye_...', region: 'us' });
  *
  * // EU region
@@ -121,16 +119,10 @@ export class BabySea {
       );
     }
 
-    if (!options.baseUrl && !options.region) {
-      throw new Error(
-        "BabySea: region is required. Use 'us' or 'eu' (e.g. { region: 'us' }).",
-      );
-    }
-
     this.apiKey = options.apiKey;
     this.baseUrl = (
       options.baseUrl ??
-      REGION_URLS[options.region!] ??
+      (options.region ? REGION_URLS[options.region] : undefined) ??
       DEFAULT_BASE_URL
     ).replace(/\/+$/, '');
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
@@ -300,7 +292,7 @@ export class BabySea {
   async listGenerations(options?: {
     limit?: number;
     offset?: number;
-  }): Promise<PaginatedResponse<GenerationListData>> {
+  }): Promise<ApiResponse<GenerationListData>> {
     const params = new URLSearchParams();
 
     if (options?.limit !== undefined) {
@@ -314,9 +306,7 @@ export class BabySea {
     const qs = params.toString();
     const path = `/v1/content/list${qs ? `?${qs}` : ''}`;
 
-    return this.request<GenerationListData>('GET', path) as Promise<
-      PaginatedResponse<GenerationListData>
-    >;
+    return this.request<GenerationListData>('GET', path);
   }
 
   /**
@@ -371,12 +361,12 @@ export class BabySea {
       try {
         return await this.doRequest<T>(method, path, body);
       } catch (err) {
-        if (
-          err instanceof BabySeaError &&
-          err.retryable &&
-          attempt < maxAttempts
-        ) {
+        if (err instanceof BabySeaError && err.retryable) {
           lastError = err;
+
+          if (attempt >= maxAttempts) {
+            throw new BabySeaRetryError(err, maxAttempts);
+          }
 
           // If we got Retry-After, use that; otherwise exponential backoff
           const waitMs = err.rateLimit?.retryAfter
@@ -404,7 +394,6 @@ export class BabySea {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
-      'User-Agent': `babysea/${SDK_VERSION}`,
       Accept: 'application/json',
     };
 

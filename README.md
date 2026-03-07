@@ -2,7 +2,7 @@
 
 Official TypeScript SDK for the [BabySea API](https://babysea.ai). BabySea offers one API for image and video generation across multiple AI inference providers, with automatic failover and a unified schema.
 
-[![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org/) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases)
+[![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org/) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 
 - **Zero dependencies** - pure `fetch` and `crypto.subtle`, works everywhere
 - **Isomorphic** - Node 18+, Edge runtimes (Vercel, Cloudflare Workers), browsers
@@ -31,7 +31,7 @@ import { BabySea } from 'babysea';
 
 const client = new BabySea({
   apiKey: 'bye_...',
-  region: 'us', // 'us' | 'eu'
+  region: 'us',
 });
 
 // Preview cost before generating
@@ -48,10 +48,10 @@ const result = await client.generate('bfl/flux-schnell', {
 });
 
 console.log(result.data.generation_id);
-// → "gen_01jh..."
+// → "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-> Generations are async - you get a `generation_id` immediately. Use **webhooks** to receive the completed output.
+> Generations are async - you receive a `generation_id` immediately. Use `getGeneration()` or webhooks to handle completion.
 
 ---
 
@@ -70,7 +70,8 @@ const client = new BabySea({
   region: 'us',
 
   /**
-   * Override the base URL entirely - for custom API domains (Enterprise plan).
+   * Defaults to 'us' when omitted.
+   * Override the base URL entirely.
    * Takes precedence over `region`.
    */
   baseUrl: 'https://acme.api.us.babysea.ai',
@@ -78,7 +79,7 @@ const client = new BabySea({
   /** Request timeout in milliseconds. Default: 30 000 (30s). */
   timeout: 30_000,
 
-  /** Max automatic retries on retryable errors (429, 5xx). Default: 2. */
+  /** Max automatic retries on retryable API errors. Default: 2. */
   maxRetries: 2,
 });
 ```
@@ -188,7 +189,7 @@ const short = await client.estimate('bfl/flux-schnell', 5);
 ### `getGeneration(id)` - Fetch a single generation
 
 ```ts
-const gen = await client.getGeneration('gen_01jh...');
+const gen = await client.getGeneration('550e8400-e29b-41d4-a716-446655440000');
 
 gen.data.generation_status;       // 'pending' | 'processing' | 'succeeded' | 'failed' | 'canceled'
 gen.data.generation_output_file;  // string[] of output URLs (when succeeded)
@@ -210,7 +211,7 @@ page.data.generations; // Generation[]
 ### `cancelGeneration(id)` - Cancel an in-progress generation
 
 ```ts
-const cancel = await client.cancelGeneration('gen_01jh...');
+const cancel = await client.cancelGeneration('550e8400-e29b-41d4-a716-446655440000');
 
 cancel.data.generation_status;    // 'canceled'
 cancel.data.credits_refunded;     // true
@@ -224,7 +225,7 @@ cancel.data.provider_cancel_sent; // true (best-effort signal to provider)
 ### `deleteGeneration(id)` - Delete a generation and its files
 
 ```ts
-const del = await client.deleteGeneration('gen_01jh...');
+const del = await client.deleteGeneration('550e8400-e29b-41d4-a716-446655440000');
 
 del.data.files_deleted; // number of storage files removed
 ```
@@ -474,15 +475,18 @@ interface PaginatedResponse<T> extends ApiResponse<T> {
 
 ## Rate Limits
 
-| Plan | General (req/min) | Generation (req/min) |
-|---|---|---|
-| Free | 30 | 10 |
-| Starter ($9/mo) | 60 | 20 |
-| Pro ($29/mo) | 150 | 50 |
-| Scale ($99/mo) | 300 | 100 |
-| Enterprise ($199/mo) | 600 | 200 |
+Rate limits are enforced by the API and can vary by plan and route.
 
-All limits are per-account (shared across all API keys under the same account). The SDK automatically retries 429 responses using `Retry-After`, up to `maxRetries` (default: 2).
+The SDK surfaces rate-limit metadata through `BabySeaError.rateLimit` when the API includes these headers:
+
+| Header | Description |
+| ------ | ----------- |
+| `X-RateLimit-Limit` | Maximum requests in the current window |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp when the current window resets |
+| `Retry-After` | Seconds to wait before retrying after a `429` |
+
+When a response is retryable, the SDK automatically respects `Retry-After` and retries up to `maxRetries`.
 
 ---
 
@@ -493,9 +497,9 @@ All limits are per-account (shared across all API keys under the same account). 
 | `us` | `https://api.us.babysea.ai` |
 | `eu` | `https://api.eu.babysea.ai` |
 
-Custom API domains (Enterprise plan) are supported via the `baseUrl` option.
+Custom base URLs are supported via the `baseUrl` option.
 
-BabySea routes requests across all configured inference providers (Replicate, Fal, BytePlus, Cloudflare) automatically with failover.
+BabySea routes requests across the providers supported by the selected model and current account configuration.
 
 ---
 

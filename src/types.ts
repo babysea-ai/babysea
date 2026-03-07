@@ -13,7 +13,8 @@ export interface BabySeaOptions {
    * - `'us'` → US regional endpoint
    * - `'eu'` → EU regional endpoint
    *
-   * Required unless `baseUrl` is provided.
+    * Defaults to `'us'` when both `region` and `baseUrl` are omitted.
+    * Ignored when `baseUrl` is provided.
    */
   region?: BabySeaRegion;
 
@@ -23,7 +24,7 @@ export interface BabySeaOptions {
   /** Request timeout in milliseconds. Defaults to `30_000` (30s). */
   timeout?: number;
 
-  /** Maximum number of automatic retries for retryable errors (429, 5xx). Defaults to `2`. */
+  /** Maximum number of automatic retries for retryable API errors. Defaults to `2`. */
   maxRetries?: number;
 }
 
@@ -187,8 +188,9 @@ export interface Model {
    *
    * - **Flat-priced models** → `number` (credits per generation or per second for duration-based video models).
    * - **Resolution-priced models** → `Record<string, number>` mapping each resolution to its per-second cost.
+   * - `undefined` when no pricing entry exists for the model.
    */
-  model_pricing: number | Record<string, number>;
+  model_pricing: number | Record<string, number> | undefined;
   model_supported_provider: string[];
   schema: ModelSchema;
   specific_schema: string[];
@@ -280,7 +282,7 @@ export interface EstimateData {
   model_identifier: string;
   model_type: 'image' | 'video';
   assets_count: number;
-  /** Per-second cost (only present for video models with duration-based pricing). */
+  /** Per-second cost for video models. For resolution-priced models, this is the rate for the selected resolution. */
   cost_per_second?: number;
   /** Requested duration in seconds (only present for video models). */
   duration_seconds?: number;
@@ -339,7 +341,11 @@ export interface Generation {
   // Duration, resolution & audio (video models only)
   generation_duration?: number;
   generation_resolution?: string;
-  generation_generate_audio?: boolean;
+  /**
+   * Stringified boolean — the API serializes this boolean field as `"true"` or
+   * `"false"` (same as all non-preserved primitives in generation_data).
+   */
+  generation_generate_audio?: string;
   // Errors (only present on failure)
   generation_error?: string;
   generation_error_code?: string;
@@ -351,6 +357,9 @@ export interface Generation {
 
 export interface GenerationListData {
   generations: Generation[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // ─── /v1/generate/image (POST) ───
@@ -434,16 +443,22 @@ export interface VideoGenerationParams {
   generation_input_file?: string[];
 
   /**
+   * Public URL for the last frame of a video (image-to-video models that accept a
+   * distinct end-frame input). Validated and combined with `generation_input_file`
+   * server-side.
+   */
+  generation_input_file_last_image?: string;
+
+  /**
    * Preferred inference provider order.
    *
    * Most models accept `"replicate, fal"` or `"fal, replicate"`.
-   * Some models also support additional providers such as BytePlus.
+   * Some models also support BytePlus. Video routes do not accept Cloudflare.
    * Use `client.library.models()` to check supported providers per model.
    *
    * When omitted, the model's default order is used.
    */
   generation_provider_order?:
-    | 'replicate'
     | 'replicate, fal'
     | 'fal, replicate'
     | 'byteplus, replicate, fal'

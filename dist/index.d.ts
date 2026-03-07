@@ -1,5 +1,5 @@
-import { A as ApiResponse, H as HealthProvidersData, a as HealthModelsData, b as HealthStorageData, c as HealthCacheData, L as LibraryProvidersData, d as LibraryModelsData, B as BabySeaOptions, S as StatusData, U as UsageData, e as AccountData, f as BillingData, E as EstimateData, G as GenerationCancelData, g as GenerationDeleteData, h as Generation, P as PaginatedResponse, i as GenerationListData, I as ImageGenerationParams, j as ImageGenerationData, V as VideoGenerationParams, k as VideoGenerationData, l as ApiErrorBody, R as RateLimitInfo } from './types-9mmJNI_Q.js';
-export { m as ApiKeyScope, n as ApiKeyScopePreset, o as BabySeaRegion, p as HealthModel, q as HealthModelProvider, r as HealthProvider, M as Model, s as ModelSchema, t as ProviderProfile, u as UsageEndpoint, v as UsageProvider, W as WebhookEventType, w as WebhookPayload } from './types-9mmJNI_Q.js';
+import { A as ApiResponse, H as HealthProvidersData, a as HealthModelsData, b as HealthStorageData, c as HealthCacheData, L as LibraryProvidersData, d as LibraryModelsData, B as BabySeaOptions, S as StatusData, U as UsageData, e as AccountData, f as BillingData, E as EstimateData, G as GenerationCancelData, g as GenerationDeleteData, h as Generation, i as GenerationListData, I as ImageGenerationParams, j as ImageGenerationData, V as VideoGenerationParams, k as VideoGenerationData, l as ApiErrorBody, R as RateLimitInfo } from './types-BzAwYL6s.js';
+export { m as ApiKeyScope, n as ApiKeyScopePreset, o as BabySeaRegion, p as HealthModel, q as HealthModelProvider, r as HealthProvider, M as Model, s as ModelSchema, P as PaginatedResponse, t as ProviderProfile, u as UsageEndpoint, v as UsageProvider, W as WebhookEventType, w as WebhookPayload } from './types-BzAwYL6s.js';
 
 /**
  * BabySea API client
@@ -8,15 +8,15 @@ export { m as ApiKeyScope, n as ApiKeyScopePreset, o as BabySeaRegion, p as Heal
  * ```ts
  * import { BabySea } from 'babysea';
  *
- * // US region (default)
+ * // Explicit US region
  * const client = new BabySea({ apiKey: 'bye_...', region: 'us' });
  *
  * // EU region
  * const eu = new BabySea({ apiKey: 'bye_...', region: 'eu' });
  *
  * // Generate an image
- * const result = await client.generate('{model_identifier}', {
- *   generation_prompt: 'A cute baby seal on the beach',
+ * const result = await client.generate('bfl/flux-schnell', {
+ *   generation_prompt: 'A baby seal plays in the Arctic',
  * });
  *
  * console.log(result.data.generation_id);
@@ -64,6 +64,7 @@ declare class BabySea {
         providers: () => Promise<ApiResponse<LibraryProvidersData>>;
         /**
          * Available models
+         *
          * `GET /v1/library/models`
          */
         models: () => Promise<ApiResponse<LibraryModelsData>>;
@@ -100,10 +101,18 @@ declare class BabySea {
      *
      * `GET /v1/estimate/{model_identifier}`
      *
-     * @param model - Model identifier (e.g. `"{model_identifier}"`).
-     * @param count - Number of generations to estimate (default 1).
+     * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
+     * @param options.count - Number of generations to estimate (default 1).
+     * @param options.duration - Duration in seconds (video models only).
+     * @param options.resolution - Output resolution, e.g. `"1080p"` (resolution-priced video models only).
+     * @param options.audio - Whether to include audio pricing (audio-priced video models only).
      */
-    estimate(model: string, count?: number): Promise<ApiResponse<EstimateData>>;
+    estimate(modelIdentifier: string, options?: number | {
+        count?: number;
+        duration?: number;
+        resolution?: string;
+        audio?: boolean;
+    }): Promise<ApiResponse<EstimateData>>;
     /**
      * Cancel generation
      *
@@ -139,25 +148,25 @@ declare class BabySea {
     listGenerations(options?: {
         limit?: number;
         offset?: number;
-    }): Promise<PaginatedResponse<GenerationListData>>;
+    }): Promise<ApiResponse<GenerationListData>>;
     /**
      * Generate image
      *
      * `POST /v1/generate/image/{model_identifier}`
      *
-     * @param model - Model identifier (e.g. `"{model_identifier}"`).
+     * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
      * @param params - Generation parameters. See {@link ImageGenerationParams}.
      */
-    generate(model: string, params: ImageGenerationParams): Promise<ApiResponse<ImageGenerationData>>;
+    generate(modelIdentifier: string, params: ImageGenerationParams): Promise<ApiResponse<ImageGenerationData>>;
     /**
      * Generate video
      *
      * `POST /v1/generate/video/{model_identifier}`
      *
-     * @param model - Model identifier (e.g. `"{model_identifier}"`).
+     * @param modelIdentifier - Model identifier (e.g. `"google/veo-2"`).
      * @param params - Generation parameters. See {@link VideoGenerationParams}.
      */
-    generateVideo(model: string, params: VideoGenerationParams): Promise<ApiResponse<VideoGenerationData>>;
+    generateVideo(modelIdentifier: string, params: VideoGenerationParams): Promise<ApiResponse<VideoGenerationData>>;
     private request;
     private doRequest;
 }
@@ -199,4 +208,4 @@ declare class BabySeaRetryError extends Error {
     constructor(lastError: BabySeaError, attempts: number);
 }
 
-export { AccountData, ApiErrorBody, ApiResponse, BabySea, BabySeaError, BabySeaOptions, BabySeaRetryError, BabySeaTimeoutError, BillingData, EstimateData, Generation, GenerationCancelData, GenerationDeleteData, GenerationListData, HealthCacheData, HealthModelsData, HealthProvidersData, HealthStorageData, ImageGenerationData, ImageGenerationParams, LibraryModelsData, LibraryProvidersData, PaginatedResponse, RateLimitInfo, StatusData, UsageData, VideoGenerationData, VideoGenerationParams };
+export { AccountData, ApiErrorBody, ApiResponse, BabySea, BabySeaError, BabySeaOptions, BabySeaRetryError, BabySeaTimeoutError, BillingData, EstimateData, Generation, GenerationCancelData, GenerationDeleteData, GenerationListData, HealthCacheData, HealthModelsData, HealthProvidersData, HealthStorageData, ImageGenerationData, ImageGenerationParams, LibraryModelsData, LibraryProvidersData, RateLimitInfo, StatusData, UsageData, VideoGenerationData, VideoGenerationParams };

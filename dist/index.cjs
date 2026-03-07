@@ -38,7 +38,6 @@ var REGION_URLS = {
 var DEFAULT_BASE_URL = REGION_URLS.us;
 var DEFAULT_TIMEOUT = 3e4;
 var DEFAULT_MAX_RETRIES = 2;
-var SDK_VERSION = "1.0.0";
 var BabySea = class {
   constructor(options) {
     if (!options.apiKey) {
@@ -46,13 +45,8 @@ var BabySea = class {
         `BabySea: apiKey is required. Get one at https://${REGION_URLS.us.replace("https://api.", "")} or https://${REGION_URLS.eu.replace("https://api.", "")}`
       );
     }
-    if (!options.baseUrl && !options.region) {
-      throw new Error(
-        "BabySea: region is required. Use 'us' or 'eu' (e.g. { region: 'us' })."
-      );
-    }
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? REGION_URLS[options.region] ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    this.baseUrl = (options.baseUrl ?? (options.region ? REGION_URLS[options.region] : void 0) ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.library = {
@@ -107,14 +101,34 @@ var BabySea = class {
    *
    * `GET /v1/estimate/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
-   * @param count - Number of generations to estimate (default 1).
+   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
+   * @param options.count - Number of generations to estimate (default 1).
+   * @param options.duration - Duration in seconds (video models only).
+   * @param options.resolution - Output resolution, e.g. `"1080p"` (resolution-priced video models only).
+   * @param options.audio - Whether to include audio pricing (audio-priced video models only).
    */
-  async estimate(model, count) {
-    const params = count !== void 0 ? `?count=${count}` : "";
+  async estimate(modelIdentifier, options) {
+    const params = new URLSearchParams();
+    if (typeof options === "number") {
+      params.set("count", String(options));
+    } else if (options) {
+      if (options.count !== void 0) {
+        params.set("count", String(options.count));
+      }
+      if (options.duration !== void 0) {
+        params.set("duration", String(options.duration));
+      }
+      if (options.resolution !== void 0) {
+        params.set("resolution", options.resolution);
+      }
+      if (options.audio !== void 0) {
+        params.set("audio", String(options.audio));
+      }
+    }
+    const qs = params.toString();
     return this.request(
       "GET",
-      `/v1/estimate/${model}${params}`
+      `/v1/estimate/${modelIdentifier}${qs ? `?${qs}` : ""}`
     );
   }
   /**
@@ -181,13 +195,13 @@ var BabySea = class {
    *
    * `POST /v1/generate/image/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
+   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
    * @param params - Generation parameters. See {@link ImageGenerationParams}.
    */
-  async generate(model, params) {
+  async generate(modelIdentifier, params) {
     return this.request(
       "POST",
-      `/v1/generate/image/${model}`,
+      `/v1/generate/image/${modelIdentifier}`,
       params
     );
   }
@@ -196,13 +210,13 @@ var BabySea = class {
    *
    * `POST /v1/generate/video/{model_identifier}`
    *
-   * @param model - Model identifier (e.g. `"{model_identifier}"`).
+   * @param modelIdentifier - Model identifier (e.g. `"google/veo-2"`).
    * @param params - Generation parameters. See {@link VideoGenerationParams}.
    */
-  async generateVideo(model, params) {
+  async generateVideo(modelIdentifier, params) {
     return this.request(
       "POST",
-      `/v1/generate/video/${model}`,
+      `/v1/generate/video/${modelIdentifier}`,
       params
     );
   }
@@ -214,8 +228,11 @@ var BabySea = class {
       try {
         return await this.doRequest(method, path, body);
       } catch (err) {
-        if (err instanceof BabySeaError && err.retryable && attempt < maxAttempts) {
+        if (err instanceof BabySeaError && err.retryable) {
           lastError = err;
+          if (attempt >= maxAttempts) {
+            throw new BabySeaRetryError(err, maxAttempts);
+          }
           const waitMs = err.rateLimit?.retryAfter ? err.rateLimit.retryAfter * 1e3 : Math.min(1e3 * Math.pow(2, attempt - 1), 3e4);
           await sleep(waitMs);
           continue;
@@ -229,7 +246,6 @@ var BabySea = class {
     const url = `${this.baseUrl}${path}`;
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
-      "User-Agent": `babysea/${SDK_VERSION}`,
       Accept: "application/json"
     };
     if (body) {
@@ -246,7 +262,20 @@ var BabySea = class {
       });
       const rateLimit = parseRateLimitHeaders(response.headers);
       if (!response.ok) {
-        const errorBody = await response.json();
+        let errorBody;
+        try {
+          errorBody = await response.json();
+        } catch {
+          errorBody = {
+            status: "error",
+            error: {
+              code: `HTTP_${response.status}`,
+              type: "api_error",
+              message: `HTTP ${response.status} ${response.statusText}`,
+              retryable: response.status >= 500
+            }
+          };
+        }
         throw new BabySeaError(response.status, errorBody, rateLimit);
       }
       return await response.json();
