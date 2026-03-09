@@ -9,8 +9,10 @@ import type {
   EstimateData,
   Generation,
   GenerationCancelData,
+  GenerationData,
   GenerationDeleteData,
   GenerationListData,
+  GenerationParams,
   HealthCacheData,
   HealthModelsData,
   HealthProvidersData,
@@ -19,7 +21,6 @@ import type {
   ImageGenerationParams,
   LibraryModelsData,
   LibraryProvidersData,
-  PaginatedResponse,
   RateLimitInfo,
   StatusData,
   UsageData,
@@ -165,7 +166,7 @@ export class BabySea {
    *
    * `GET /v1/usage`
    *
-   * @param days - Lookback window in days (1–90, default 30).
+   * @param days - Lookback window in days (1-90, default 30).
    */
   async usage(days?: number): Promise<ApiResponse<UsageData>> {
     const params = days !== undefined ? `?days=${days}` : '';
@@ -286,7 +287,7 @@ export class BabySea {
    *
    * `GET /v1/content/list`
    *
-   * @param options.limit - Page size (1–100, default 50).
+   * @param options.limit - Page size (1-100, default 50).
    * @param options.offset - Offset (default 0).
    */
   async listGenerations(options?: {
@@ -310,20 +311,41 @@ export class BabySea {
   }
 
   /**
-   * Generate image
+   * Generate image or video
    *
-   * `POST /v1/generate/image/{model_identifier}`
+   * Automatically routes to the correct endpoint based on the parameters:
+   * - If `generation_duration` is present → `POST /v1/generate/video/{model_identifier}`
+   * - Otherwise → `POST /v1/generate/image/{model_identifier}`
    *
-   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`).
-   * @param params - Generation parameters. See {@link ImageGenerationParams}.
+   * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`, `"google/veo-2"`).
+   * @param params - Generation parameters. See {@link GenerationParams}.
+   *
+   * @example
+   * ```ts
+   * // Image generation
+   * await client.generate('bfl/flux-schnell', {
+   *   generation_prompt: 'A baby seal plays in the Arctic',
+   * });
+   *
+   * // Video generation
+   * await client.generate('google/veo-2', {
+   *   generation_prompt: 'A baby seal plays in the Arctic',
+   *   generation_duration: 5,
+   * });
+   * ```
    */
   async generate(
     modelIdentifier: string,
-    params: ImageGenerationParams,
-  ): Promise<ApiResponse<ImageGenerationData>> {
-    return this.request<ImageGenerationData>(
+    params: GenerationParams,
+  ): Promise<ApiResponse<GenerationData>> {
+    const route =
+      'generation_duration' in params &&
+      params.generation_duration !== undefined
+        ? 'video'
+        : 'image';
+    return this.request<GenerationData>(
       'POST',
-      `/v1/generate/image/${modelIdentifier}`,
+      `/v1/generate/${route}/${modelIdentifier}`,
       params,
     );
   }

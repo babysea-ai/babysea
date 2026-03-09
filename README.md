@@ -1,6 +1,6 @@
 # BabySea
 
-Official TypeScript SDK for the [BabySea API](https://babysea.ai). BabySea is an orchestrated semantic layer for generative media.
+Official TypeScript SDK for the [BabySea API](https://babysea.ai). One API for AI inference providers. The orchestrated semantic layer for generative media.
 
 [![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org/) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 
@@ -41,7 +41,7 @@ console.log(est.data.cost_total_consumed);       // 0.008
 
 // Generate an image
 const result = await client.generate('bfl/flux-schnell', {
-  generation_prompt: 'A cute baby seal on the beach at golden hour',
+  generation_prompt: 'A baby seal plays in the Arctic',
   generation_ratio: '16:9',
   generation_output_format: 'png',
   generation_output_number: 1,
@@ -116,7 +116,7 @@ const { generation_id, generation_provider_order } = result.data;
 // Duration-only video model
 const result = await client.generateVideo('google/veo-2', {
   // Required
-  generation_prompt: 'A baby seal swimming in the ocean',
+  generation_prompt: 'A baby seal plays in the Arctic',
   generation_duration: 5, // seconds (range varies per model)
 
   // Optional
@@ -272,7 +272,7 @@ bill.data.billing_period_ends_at;
 ### `usage(days?)` - Usage analytics
 
 ```ts
-const u = await client.usage(30); // last 30 days (1–90)
+const u = await client.usage(30); // last 30 days (1-90)
 
 u.data.usage_total_generations;
 u.data.usage_total_estimated_cost;

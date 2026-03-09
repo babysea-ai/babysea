@@ -53,6 +53,9 @@ export type {
   // /v1/generate/video
   VideoGenerationParams,
   VideoGenerationData,
+  // Unified generate()
+  GenerationParams,
+  GenerationData,
   // API key scopes
   ApiKeyScope,
   ApiKeyScopePreset,

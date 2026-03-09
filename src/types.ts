@@ -172,8 +172,8 @@ export interface ModelSchema {
   generation_output_format: string[];
   generation_output_number: number;
   generation_input_file: boolean;
-  /** Duration range in seconds (video models only). */
-  generation_duration?: { min: number; max: number };
+  /** Accepted duration values in seconds (video models only). */
+  generation_duration?: number[];
   /** Supported output resolutions (resolution-priced video models only). */
   generation_resolution?: string[];
   /** Whether audio generation is supported (audio-priced video models only). */
@@ -342,7 +342,7 @@ export interface Generation {
   generation_duration?: number;
   generation_resolution?: string;
   /**
-   * Stringified boolean — the API serializes this boolean field as `"true"` or
+   * Stringified boolean - the API serializes this boolean field as `"true"` or
    * `"false"` (same as all non-preserved primitives in generation_data).
    */
   generation_generate_audio?: string;
@@ -374,7 +374,7 @@ export interface ImageGenerationParams {
   /** Output format: `"png"`, `"jpg"`, or `"webp"`. */
   generation_output_format?: string;
 
-  /** Number of output images (1–N, model-dependent). */
+  /** Number of output images (1-N, model-dependent). */
   generation_output_number?: number;
 
   /** Array of public URLs for input files. */
@@ -447,7 +447,7 @@ export interface VideoGenerationParams {
    * distinct end-frame input). Validated and combined with `generation_input_file`
    * server-side.
    */
-  generation_input_file_last_image?: string;
+  generation_input_file_last_content?: string;
 
   /**
    * Preferred inference provider order.
@@ -481,6 +481,21 @@ export type VideoGenerationData =
       generation_id: string;
       generation_status: 'canceled';
     };
+
+// ─── Unified generate() types ───
+
+/**
+ * Union of image and video generation parameters.
+ * Used by `client.generate()` which auto-detects image vs video
+ * based on the presence of `generation_duration`.
+ */
+export type GenerationParams = ImageGenerationParams | VideoGenerationParams;
+
+/**
+ * Union of image and video generation response data.
+ * Structurally identical - both return `generation_id` + `generation_initialized`.
+ */
+export type GenerationData = ImageGenerationData | VideoGenerationData;
 
 // ─── API Key Scopes ───
 
