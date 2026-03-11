@@ -1,0 +1,87 @@
+{
+  "name": "babysea",
+  "version": "1.3.1",
+  "description": "Official TypeScript SDK for the BabySea API. One API for AI inference providers. The orchestrated semantic layer for generative media.",
+  "keywords": [
+    "babysea",
+    "ai",
+    "unified-api",
+    "inference-providers",
+    "image-generation",
+    "video-generation",
+    "sdk",
+    "api-client"
+  ],
+  "homepage": "https://docs.babysea.ai",
+  "bugs": {
+    "url": "https://github.com/babysea-ai/babysea/issues"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "BabySea",
+    "url": "https://babysea.ai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babysea-ai/babysea.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/webhooks.d.ts",
+        "default": "./dist/webhooks.js"
+      },
+      "require": {
+        "types": "./dist/webhooks.d.cts",
+        "default": "./dist/webhooks.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "badges",
+    "README.md",
+    "LICENSE",
+    "socket.json"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "badges": "node scripts/generate-badges.mjs",
+    "prebuild": "node scripts/generate-badges.mjs",
+    "build": "tsup",
+    "clean": "rm -rf .turbo node_modules dist",
+    "format": "prettier --check \"**/*.{mjs,ts,md,json}\"",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@kit/eslint-config": "workspace:*",
+    "@kit/prettier-config": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "badge-maker": "^5.0.2",
+    "tsup": "catalog:",
+    "typescript": "^5.9.3"
+  },
+  "prettier": "@kit/prettier-config"
+}
