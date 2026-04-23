@@ -1,44 +1,82 @@
 # BabySea
 
-The unified API for generative media.
+Open source TypeScript SDK for running generative media workloads through BabySea.
 
-One API for image, video, and multimodal AI generation.
+BabySea is the execution layer for generative media, delivered as execution infrastructure.
+It provides a single SDK to run image and video workloads across models and inference providers.
 
-BabySea abstracts inference providers, pricing, and infrastructure, so you can build without stitching APIs together.
+It standardizes schema, lifecycle, retries, and failover so workloads behave consistently in production.
 
-[![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org/) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
+[![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 
 > Works across Node.js, Edge runtimes (Vercel, Cloudflare Workers), and browsers.
 
-BabySea is the orchestration layer for generative media. Similar to how Stripe unified payments, BabySea unifies AI inference across providers and modalities.
+---
 
-## Why developers choose BabySea
+## Why BabySea
 
-- No vendor lock-in, switch providers seamlessly
-- Built-in cost estimation before execution
-- Automatic retries and failover
-- Unified schema across models
-- Production-ready async + webhook system
-- **Zero dependencies** - pure `fetch` and `crypto.subtle`, works everywhere
-- **ESM + CJS** dual build with full TypeScript types
-- **Typed errors** - structured BSE error codes, retry flags, rate limit info
+Building generative media products is not just about calling models.
+
+In production, teams have to deal with:
+
+- different provider APIs
+- different model schemas
+- async job handling
+- retries and timeouts
+- failover across providers
+- webhook verification
+- cost estimation before execution
+
+As more providers and models emerge, these differences compound, making production behavior increasingly hard to manage.
+
+BabySea standardizes this execution layer.
+
+The SDK gives you:
+
+- unified schema across models and inference providers
+- async execution with generation lifecycle control
+- retries and timeout handling
+- webhook verification for event-driven completion
+- cost estimation before execution
+- health and library endpoints for operational visibility
+- zero dependencies, using only `fetch` and `crypto.subtle`
+
+BabySea treats provider failure as a normal condition and handles it at the system level.
+
+Developers define a workload once, and BabySea handles execution across providers.
 
 ---
 
-## Design Philosophy
+## Open source
 
-BabySea is built with a simple principle:
+This SDK is fully open source under the Apache 2.0 license.
 
-**AI infrastructure should feel like a single system, not a collection of APIs.**
+You can:
 
-We unify:
+- use it in commercial projects
+- modify and extend it
+- contribute improvements
+- build your own applications and tooling on top of it
 
-- providers
-- pricing models
-- generation workflows
-- reliability patterns
+The SDK is open. The BabySea execution infrastructure remains the service layer behind it.
 
-into one consistent developer experience.
+---
+
+## Design principle
+
+AI workloads should behave predictably in production, regardless of the underlying provider.
+
+BabySea sits between your application and inference providers, controlling how workloads are executed.
+
+It normalizes:
+
+- model inputs
+- provider differences
+- execution lifecycle
+- reliability behavior
+- event delivery
+
+So developers can focus on building products, not stitching together inference edge cases.
 
 ---
 
@@ -412,7 +450,7 @@ try {
 
 ## Webhooks
 
-Receive real-time generation events on your server. BabySea signs every delivery with HMAC-SHA256 (Stripe-style `t=<ts>,v1=<hex>`).
+Receive real-time generation events on your server. BabySea signs every delivery with HMAC-SHA256 (`t=<ts>,v1=<hex>`).
 
 ```ts
 import { verifyWebhook } from 'babysea/webhooks';
