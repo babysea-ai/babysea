@@ -37,6 +37,12 @@ export interface ApiResponse<T> {
   message: string;
   timestamp: string;
   data: T;
+  /**
+   * `true` when the response was replayed from the idempotency cache
+   * (the server returned the `Idempotency-Replayed: true` header).
+   * Populated by the SDK; not returned in the JSON body itself.
+   */
+  idempotency_replayed?: boolean;
 }
 
 export interface PaginatedResponse<T> extends ApiResponse<T> {
@@ -390,15 +396,14 @@ export type InferenceProvider =
 export type GenerationProviderOrder =
   | 'replicate'
   | 'replicate, fal'
-  | 'fal, replicate'
   | 'bfl, replicate'
-  | 'replicate, bfl'
   | 'openai, replicate'
-  | 'replicate, openai'
+  | 'runway, replicate'
   | 'byteplus, replicate, fal'
   | 'openai, replicate, fal'
-  | 'cloudflare, replicate, fal'
-  | 'cloudflare, replicate, bfl';
+  | 'replicate, fal, cloudflare'
+  | 'bfl, replicate, cloudflare'
+  | 'alibabacloud, replicate, fal';
 
 export interface ImageGenerationParams {
   /** Text prompt. Required. */
@@ -482,23 +487,20 @@ export interface VideoGenerationParams {
   /**
    * Preferred inference provider order.
    *
-   * Most models accept `"replicate, fal"` or `"fal, replicate"`.
-   * Some models also support BytePlus or OpenAI. Video routes do not accept Cloudflare or BFL.
-   * Use `client.library.models()` to check supported providers per model.
-   *
-   * When omitted, the model's default order is used.
+   * Each model has 1 fixed provider stack. Use `client.library.models()` to check
+   * the supported stack per model. When omitted, the model's default order is used.
    */
   generation_provider_order?:
+    | 'replicate'
     | 'replicate, fal'
-    | 'fal, replicate'
     | 'bfl, replicate'
-    | 'replicate, bfl'
     | 'openai, replicate'
-    | 'replicate, openai'
+    | 'runway, replicate'
     | 'byteplus, replicate, fal'
     | 'openai, replicate, fal'
-    | 'cloudflare, replicate, fal'
-    | 'cloudflare, replicate, bfl';
+    | 'replicate, fal, cloudflare'
+    | 'bfl, replicate, cloudflare'
+    | 'alibabacloud, replicate, fal';
 
   /** Model-specific parameters (varies per model). */
   [key: string]: unknown;

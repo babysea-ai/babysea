@@ -325,9 +325,16 @@ export class BabySea {
    *
    * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`, `"google/veo-2"`).
    * @param params - Generation parameters. See {@link GenerationParams}.
+   * @param options.idempotencyKey - Optional client-supplied key (1-255 chars,
+   * `[A-Za-z0-9_-:.]`). Identical retries within 24h replay the original
+   * response with `idempotency_replayed: true`. Same key with a different
+   * request body returns `BSE2015`. Same key while the original is still
+   * processing returns `BSE2016`. Recommended for production workloads.
    *
    * @example
    * ```ts
+   * import { randomUUID } from 'node:crypto';
+   *
    * // Image generation
    * await client.generate('bfl/flux-schnell', {
    *   generation_prompt: 'A baby seal plays in Arctic',
@@ -338,11 +345,24 @@ export class BabySea {
    *   generation_prompt: 'A baby seal plays in Arctic',
    *   generation_duration: 5,
    * });
+   *
+   * // Production: opt into idempotency for retry safety
+   * const idempotencyKey = randomUUID();
+   * const created = await client.generate(
+   *   'bfl/flux-schnell',
+   *   { generation_prompt: 'A baby seal plays in Arctic' },
+   *   { idempotencyKey },
+   * );
+   *
+   * if (created.idempotency_replayed) {
+   *   console.log('Server replayed the original response');
+   * }
    * ```
    */
   async generate(
     modelIdentifier: string,
     params: GenerationParams,
+    options?: { idempotencyKey?: string },
   ): Promise<ApiResponse<GenerationData>> {
     const route =
       'generation_duration' in params &&
@@ -353,6 +373,9 @@ export class BabySea {
       'POST',
       `/v1/generate/${route}/${modelIdentifier}`,
       params,
+      options?.idempotencyKey
+        ? { 'Idempotency-Key': options.idempotencyKey }
+        : undefined,
     );
   }
 
@@ -362,13 +385,14 @@ export class BabySea {
     method: string,
     path: string,
     body?: unknown,
+    extraHeaders?: Record<string, string>,
   ): Promise<ApiResponse<T>> {
     let lastError: BabySeaError | undefined;
     const maxAttempts = this.maxRetries + 1;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.doRequest<T>(method, path, body);
+        return await this.doRequest<T>(method, path, body, extraHeaders);
       } catch (err) {
         if (err instanceof BabySeaError && err.retryable) {
           lastError = err;
@@ -398,12 +422,14 @@ export class BabySea {
     method: string,
     path: string,
     body?: unknown,
+    extraHeaders?: Record<string, string>,
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       Accept: 'application/json',
+      ...extraHeaders,
     };
 
     if (body) {
@@ -444,7 +470,14 @@ export class BabySea {
         throw new BabySeaError(response.status, errorBody, rateLimit);
       }
 
-      return (await response.json()) as ApiResponse<T>;
+      const parsed = (await response.json()) as ApiResponse<T>;
+
+      // Surface server-side idempotency replay flag from response header
+      if (response.headers.get('idempotency-replayed') === 'true') {
+        parsed.idempotency_replayed = true;
+      }
+
+      return parsed;
     } catch (err) {
       if (err instanceof BabySeaError) {
         throw err;

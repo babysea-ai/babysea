@@ -1,11 +1,12 @@
 # BabySea
 
-Open source TypeScript SDK for running generative media workloads through BabySea.
+Open source TypeScript SDK for the **BabySea execution control plane for generative media**.
 
-BabySea is the execution layer for generative media, delivered as execution infrastructure.
-It provides a single SDK to run image and video workloads across models and inference providers.
+BabySea standardizes how image and video workloads run across inference providers. One API, one schema, one lifecycle. Provider selection, failover, billing, and observability are managed by the platform; provider selection adapts over time based on real execution outcomes.
 
-It standardizes schema, lifecycle, retries, and failover so workloads behave consistently in production.
+The SDK gives you a single, typed entry point into that system: send a workload, get a generation id back, react to lifecycle events. The execution control plane handles the rest.
+
+80+ image and video models. 12+ AI labs. 8+ inference providers. 3 sovereign regions. One contract.
 
 [![npm version](./badges/version.svg)](https://www.npmjs.com/package/babysea) [![license](./badges/license.svg)](./LICENSE) [![npm type definitions](./badges/types.svg)](https://www.typescriptlang.org) [![node](./badges/node.svg)](https://nodejs.org/en/about/previous-releases) [![US region](https://uptime.betterstack.com/status-badges/v1/monitor/2got6.svg)](https://uptime.betterstack.com/?utm_source=status_badge) [![EU region](https://uptime.betterstack.com/status-badges/v1/monitor/2goty.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 
@@ -26,24 +27,25 @@ In production, teams have to deal with:
 - failover across providers
 - webhook verification
 - cost estimation before execution
+- providers that drift in latency, cost, and quality from week to week
 
-As more providers and models emerge, these differences compound, making production behavior increasingly hard to manage.
+As more providers and models emerge, these differences compound, making production behavior increasingly hard to manage by hand.
 
-BabySea standardizes this execution layer.
+BabySea turns inconsistent provider behavior into a predictable execution system.
 
 The SDK gives you:
 
-- unified schema across models and inference providers
-- async execution with generation lifecycle control
-- retries and timeout handling
+- unified schema across 80+ models from 12+ AI labs and 8+ inference providers
+- async execution with full generation lifecycle control
+- automatic retries, timeouts, and cross-provider failover
 - webhook verification for event-driven completion
 - cost estimation before execution
 - health and library endpoints for operational visibility
 - zero dependencies, using only `fetch` and `crypto.subtle`
 
-BabySea treats provider failure as a normal condition and handles it at the system level.
+The platform behind the SDK adapts provider selection over time based on real execution outcomes (latency, cost, success rate). You can also pin the order explicitly with `generation_provider_order`.
 
-Developers define a workload once, and BabySea handles execution across providers.
+BabySea treats provider failure as a normal condition and handles it at the system level. Developers define a workload once; the execution control plane decides how to run it.
 
 ---
 
@@ -58,7 +60,9 @@ You can:
 - contribute improvements
 - build your own applications and tooling on top of it
 
-The SDK is open. The BabySea execution infrastructure remains the service layer behind it.
+The SDK is open. The BabySea execution control plane remains the service layer behind it.
+
+> **Curious how adaptive provider selection actually works?** The data layer that drives it is open-sourced separately as [`adaptive-island`](https://github.com/babysea-ai/adaptive-island), built on Databricks (Lakeflow + Delta Lake + MLflow + Unity Catalog + Mosaic AI Model Serving).
 
 ---
 
@@ -66,15 +70,14 @@ The SDK is open. The BabySea execution infrastructure remains the service layer 
 
 AI workloads should behave predictably in production, regardless of the underlying provider.
 
-BabySea sits between your application and inference providers, controlling how workloads are executed.
-
-It normalizes:
+BabySea sits between your application and inference providers as the execution control plane. It normalizes:
 
 - model inputs
 - provider differences
 - execution lifecycle
 - reliability behavior
 - event delivery
+- cost surface
 
 So developers can focus on building products, not stitching together inference edge cases.
 
@@ -93,6 +96,8 @@ yarn add babysea
 ---
 
 ## Quick Start
+
+> New accounts receive **$1 in free credits** on signup, enough for ~100-330 test generations depending on the model. No credit card required.
 
 ```ts
 import { BabySea } from 'babysea';
@@ -157,7 +162,7 @@ const client = new BabySea({
 
 ## Methods
 
-### `generate(model, params)` - Create an image generation
+### `generate(model, params, options?)` - Create an image generation
 
 ```ts
 const result = await client.generate('bfl/flux-schnell', {
@@ -177,6 +182,31 @@ const result = await client.generate('bfl/flux-schnell', {
 
 const { generation_id, generation_provider_order } = result.data;
 ```
+
+#### Idempotency (recommended for production)
+
+Pass an `Idempotency-Key` so retries replay the original response instead of creating duplicate generations:
+
+```ts
+import { randomUUID } from 'node:crypto';
+
+const idempotencyKey = randomUUID();
+
+const created = await client.generate(
+  'bfl/flux-schnell',
+  { generation_prompt: 'A baby seal plays in Arctic' },
+  { idempotencyKey },
+);
+
+if (created.idempotency_replayed) {
+  // Server replayed the original response from the idempotency cache.
+}
+```
+
+- Keys are valid for 24 h.
+- Replaying with a **different** body returns `BSE2015`.
+- Replaying while the original is still processing returns `BSE2016`.
+- Format: 1-255 chars, `[A-Za-z0-9_\-:.]`. UUIDs are a good default.
 
 ---
 
@@ -499,6 +529,7 @@ export async function POST(req: Request) {
 | `generation.completed` | Provider succeeded, output files available   |
 | `generation.failed`    | All providers failed or infrastructure error |
 | `generation.canceled`  | Canceled by user, credits refunded           |
+| `credits.low_balance`  | Credit balance crossed an alert threshold    |
 | `webhook.test`         | Test ping from the dashboard                 |
 
 ---
@@ -538,6 +569,12 @@ interface ApiResponse<T> {
   message: string;
   timestamp: string;
   data: T;
+  /**
+   * Set by the SDK when the server returned `Idempotency-Replayed: true`,
+   * meaning the response was replayed from the idempotency cache rather
+   * than newly executed.
+   */
+  idempotency_replayed?: boolean;
 }
 
 // Paginated responses add:
@@ -577,7 +614,7 @@ When a response is retryable, the SDK automatically respects `Retry-After` and r
 
 Custom base URLs are supported via the `baseUrl` option.
 
-BabySea routes requests across the providers supported by the selected model and current account configuration.
+BabySea selects a provider from the set supported by each model and current account configuration. Selection adapts over time based on observed latency, cost, and success rate; you can pin or constrain the order with `generation_provider_order`.
 
 ---
 
