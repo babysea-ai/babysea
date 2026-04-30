@@ -1,6 +1,6 @@
 {
   "name": "babysea",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Open source TypeScript SDK for the BabySea execution control plane for generative media.",
   "keywords": [
     "babysea",
@@ -67,6 +67,7 @@
   "files": [
     "dist",
     "badges",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE",
     "socket.json"
@@ -76,7 +77,8 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "badges": "node scripts/generate-badges.mjs",
