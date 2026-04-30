@@ -1,0 +1,105 @@
+name: release
+
+# Publishes the package to npm with cryptographic provenance.
+#
+# Trigger: pushing a tag matching v*.*.* (e.g. v1.4.1, v2.0.0-rc.1).
+# Manual:  Actions tab -> "release" -> Run workflow (specify tag).
+#
+# Provenance attestation is generated automatically because the runner
+# has an OIDC token; npm will sign the release and the signature is
+# verifiable via:  npm view babysea --json | jq .dist.attestations
+#
+# Requires repo secret: NPM_TOKEN  (npm automation token, "publish" scope)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to publish (e.g. v1.4.1)"
+        required: true
+        type: string
+
+# Provenance requires id-token write permission for OIDC.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish to npm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/babysea
+    steps:
+      - name: Checkout (tag)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Strip monorepo-only devDependencies for standalone build
+        # The source-of-truth lives in a pnpm monorepo where devDependencies
+        # use workspace:* protocol for shared eslint/prettier/tsconfig.
+        # The published package never needs them; remove them here so a
+        # standalone npm install succeeds on the runner.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+            for (const dep of Object.keys(pkg.devDependencies || {})) {
+              if ((pkg.devDependencies[dep] || '').startsWith('workspace:')) {
+                delete pkg.devDependencies[dep];
+              }
+            }
+            // These scripts depend on the stripped devDeps; not needed to build.
+            for (const s of ['lint', 'format', 'check', 'prepublishOnly']) {
+              if (pkg.scripts && pkg.scripts[s]) delete pkg.scripts[s];
+            }
+            // 'prettier' field references @kit/prettier-config which we stripped.
+            delete pkg.prettier;
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Install dependencies
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Verify version matches tag
+        run: |
+          TAG_VERSION="${{ inputs.tag || github.ref_name }}"
+          TAG_VERSION="${TAG_VERSION#v}"
+          PKG_VERSION="$(node -p 'require(\"./package.json\").version')"
+          echo "tag:     $TAG_VERSION"
+          echo "package: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build (CJS + ESM + d.ts + d.cts)
+        run: npm run build
+
+      - name: Verify tarball contents
+        run: npm pack --dry-run
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
