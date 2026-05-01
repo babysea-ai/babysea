@@ -1,6 +1,6 @@
 {
   "name": "babysea",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Open source TypeScript SDK for the BabySea execution control plane for generative media.",
   "keywords": [
     "babysea",
@@ -77,12 +77,12 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "badges": "node scripts/generate-badges.mjs",
-    "prebuild": "pnpm run badges",
+    "version:generate": "node scripts/generate-version.mjs",
+    "prebuild": "pnpm run version:generate && pnpm run badges",
     "build": "tsup",
     "clean": "rm -rf .turbo node_modules dist",
     "format": "prettier --check \"**/*.{mjs,ts,md,json}\"",

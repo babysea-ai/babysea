@@ -1,4 +1,8 @@
-import type { WebhookPayload } from './types';
+import type {
+  CreditAlertWebhookPayload,
+  GenerationWebhookPayload,
+  WebhookPayload,
+} from './types';
 
 /**
  * Verify and parse BabySea webhook signatures (Stripe-style HMAC-SHA256).
@@ -122,4 +126,75 @@ function timingSafeEqual(a: string, b: string): boolean {
   }
 
   return result === 0;
+}
+
+// ─── Type Guards ───
+//
+// Narrow a `WebhookPayload` to a specific event variant so callers can
+// access event-specific fields without manual discriminated-union checks.
+//
+// Status payloads (`generation.started`, `generation.completed`,
+// `generation.failed`, `generation.canceled`, `webhook.test`) all share
+// the `GenerationWebhookPayload` shape and are distinguished by their
+// `webhook_event` discriminator and `webhook_data.generation_status`.
+
+/**
+ * Narrow to a generation lifecycle event (any of: `generation.started`,
+ * `generation.completed`, `generation.failed`, `generation.canceled`,
+ * `webhook.test`).
+ */
+export function isGenerationEvent(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload {
+  return payload.webhook_event !== 'credits.low_balance';
+}
+
+/** Narrow to `generation.started`. */
+export function isGenerationStarted(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload & {
+  webhook_event: 'generation.started';
+} {
+  return payload.webhook_event === 'generation.started';
+}
+
+/** Narrow to `generation.completed`. */
+export function isGenerationCompleted(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload & {
+  webhook_event: 'generation.completed';
+} {
+  return payload.webhook_event === 'generation.completed';
+}
+
+/** Narrow to `generation.failed`. */
+export function isGenerationFailed(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload & {
+  webhook_event: 'generation.failed';
+} {
+  return payload.webhook_event === 'generation.failed';
+}
+
+/** Narrow to `generation.canceled`. */
+export function isGenerationCanceled(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload & {
+  webhook_event: 'generation.canceled';
+} {
+  return payload.webhook_event === 'generation.canceled';
+}
+
+/** Narrow to `credits.low_balance`. */
+export function isCreditLowBalance(
+  payload: WebhookPayload,
+): payload is CreditAlertWebhookPayload {
+  return payload.webhook_event === 'credits.low_balance';
+}
+
+/** Narrow to `webhook.test` (delivery test event). */
+export function isWebhookTest(
+  payload: WebhookPayload,
+): payload is GenerationWebhookPayload & { webhook_event: 'webhook.test' } {
+  return payload.webhook_event === 'webhook.test';
 }

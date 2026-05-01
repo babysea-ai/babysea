@@ -1,4 +1,11 @@
-import { BabySeaError, BabySeaRetryError, BabySeaTimeoutError } from './errors';
+import {
+  BabySeaError,
+  BabySeaGenerationFailedError,
+  BabySeaGenerationTimeoutError,
+  BabySeaNetworkError,
+  BabySeaRetryError,
+  BabySeaTimeoutError,
+} from './errors';
 import type {
   AccountData,
   ApiErrorBody,
@@ -25,6 +32,8 @@ import type {
   UsageData,
 } from './types';
 
+import { SDK_NAME, SDK_VERSION } from './version';
+
 const API_BASE_DOMAIN = 'babysea.ai';
 
 const REGION_URLS: Record<BabySeaRegion, string> = {
@@ -37,13 +46,10 @@ const DEFAULT_BASE_URL = REGION_URLS.us;
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
 
-/**
- * SDK package version. Kept in sync with `package.json` by the release
- * pipeline. Surfaced on every request through the `X-BabySea-SDK-Version`
- * header so the platform can correlate behavior with client versions.
- */
-const SDK_VERSION = '1.4.2';
-const SDK_NAME = 'babysea-node';
+/** Defaults for `waitForGeneration()` polling. */
+const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const DEFAULT_WAIT_INTERVAL_MS = 2_000;
+const MIN_WAIT_INTERVAL_MS = 500;
 
 /**
  * Coarse runtime classification used in SDK telemetry headers.
@@ -445,6 +451,131 @@ export class BabySea {
     );
   }
 
+  /**
+   * Poll a generation until it reaches a terminal state (`succeeded`,
+   * `failed`, or `canceled`).
+   *
+   * Convenience wrapper over `getGeneration()`. Production workloads
+   * should prefer webhooks; this helper exists for scripts, demos, and
+   * synchronous app flows that don't have a webhook receiver.
+   *
+   * @param generationId - The `generation_id` returned from `generate()`.
+   * @param options.timeout - Max wall-clock time to wait, in ms.
+   * Default: 10 minutes. Throws `BabySeaGenerationTimeoutError` if exceeded.
+   * @param options.interval - Polling interval in ms. Default: 2000.
+   * Minimum 500ms (smaller values are clamped to avoid hammering the API).
+   * @param options.signal - Optional `AbortSignal` to cancel the wait.
+   *
+   * @throws {BabySeaGenerationFailedError} when `generation_status` is `failed` or `canceled`.
+   * @throws {BabySeaGenerationTimeoutError} when the deadline elapses.
+   *
+   * @example
+   * ```ts
+   * const created = await client.generate('bfl/flux-schnell', {
+   *   generation_prompt: 'A baby seal plays in Arctic',
+   * });
+   *
+   * const generation = await client.waitForGeneration(
+   *   created.data.generation_id,
+   *   { timeout: 120_000, interval: 2_000 },
+   * );
+   *
+   * console.log(generation.data.generation_output_file);
+   * ```
+   */
+  async waitForGeneration(
+    generationId: string,
+    options?: {
+      timeout?: number;
+      interval?: number;
+      signal?: AbortSignal;
+    },
+  ): Promise<ApiResponse<Generation>> {
+    const timeoutMs = options?.timeout ?? DEFAULT_WAIT_TIMEOUT_MS;
+    const intervalMs = Math.max(
+      MIN_WAIT_INTERVAL_MS,
+      options?.interval ?? DEFAULT_WAIT_INTERVAL_MS,
+    );
+    const deadline = Date.now() + timeoutMs;
+    const signal = options?.signal;
+
+    while (true) {
+      if (signal?.aborted) {
+        throw signal.reason instanceof Error
+          ? signal.reason
+          : new Error('waitForGeneration aborted');
+      }
+
+      const last = await this.getGeneration(generationId);
+      const status = last.data.generation_status;
+
+      if (status === 'succeeded') {
+        return last;
+      }
+
+      if (status === 'failed' || status === 'canceled') {
+        throw new BabySeaGenerationFailedError(last.data);
+      }
+
+      if (Date.now() + intervalMs >= deadline) {
+        throw new BabySeaGenerationTimeoutError(
+          generationId,
+          timeoutMs,
+          status,
+        );
+      }
+
+      await sleep(intervalMs);
+    }
+  }
+
+  /**
+   * Create a generation and wait for it to reach a terminal state in a
+   * single call. Sugar over `generate()` + `waitForGeneration()`.
+   *
+   * Useful for CLIs, demos, and one-shot scripts. Production workloads
+   * with sustained throughput should prefer the async pattern
+   * (`generate()` + webhook).
+   *
+   * @example
+   * ```ts
+   * const result = await client.generateAndWait('bfl/flux-schnell', {
+   *   generation_prompt: 'A baby seal plays in Arctic',
+   * });
+   *
+   * console.log(result.data.generation_output_file);
+   * ```
+   */
+  async generateAndWait(
+    modelIdentifier: string,
+    params: GenerationParams,
+    options?: {
+      idempotencyKey?: string;
+      timeout?: number;
+      interval?: number;
+      signal?: AbortSignal;
+    },
+  ): Promise<ApiResponse<Generation>> {
+    const created = await this.generate(modelIdentifier, params, {
+      idempotencyKey: options?.idempotencyKey,
+    });
+
+    if (
+      'generation_status' in created.data &&
+      created.data.generation_status === 'canceled'
+    ) {
+      // Edge case: idempotency replay of a canceled record. Surface the
+      // current full generation record without polling.
+      return this.getGeneration(created.data.generation_id);
+    }
+
+    return this.waitForGeneration(created.data.generation_id, {
+      timeout: options?.timeout,
+      interval: options?.interval,
+      signal: options?.signal,
+    });
+  }
+
   // ─── HTTP Layer ───
 
   private async request<T>(
@@ -487,11 +618,26 @@ export class BabySea {
         // socket hangup, etc.). Only retry when it's safe to do so.
         if (canRetryNetwork && isRetryableNetworkError(err)) {
           if (attempt >= maxAttempts) {
-            throw err;
+            throw new BabySeaNetworkError(err, maxAttempts, true);
           }
 
           await sleep(computeBackoffMs(attempt));
           continue;
+        }
+
+        // Any remaining transport-layer error (non-retryable network failure
+        // on a non-idempotent method, unknown fetch error, etc.) is wrapped
+        // so consumers get a single typed error family. BabySeaError and
+        // BabySeaTimeoutError are passed through unchanged.
+        if (
+          err instanceof BabySeaError ||
+          err instanceof BabySeaTimeoutError
+        ) {
+          throw err;
+        }
+
+        if (isRetryableNetworkError(err)) {
+          throw new BabySeaNetworkError(err, attempt, false);
         }
 
         throw err;

@@ -1,4 +1,4 @@
-import type { ApiErrorBody, RateLimitInfo } from './types';
+import type { ApiErrorBody, Generation, RateLimitInfo } from './types';
 
 /**
  * Error thrown when the BabySea API returns a non-2xx response.
@@ -63,5 +63,90 @@ export class BabySeaRetryError extends Error {
     this.name = 'BabySeaRetryError';
     this.lastError = lastError;
     this.attempts = attempts;
+  }
+}
+
+/**
+ * Error thrown when the request fails before reaching the BabySea API
+ * (DNS resolution failure, TCP reset, socket hang-up, undici socket error,
+ * TLS handshake failure, generic `fetch` `TypeError`, etc.).
+ *
+ * Wraps the underlying transport error in `cause` so the original stack
+ * is still available for debugging while presenting a single typed
+ * error family to consumers.
+ */
+export class BabySeaNetworkError extends Error {
+  /** Underlying transport error from `fetch` / runtime. */
+  readonly cause: unknown;
+
+  /**
+   * Whether the failure mode is generally retryable (transient socket
+   * errors, DNS hiccups, etc.). Always `true` for instances thrown by
+   * the SDK, since non-retryable errors bubble up untouched.
+   */
+  readonly retryable: boolean;
+
+  /** Number of attempts the SDK made before giving up. */
+  readonly attempts: number;
+
+  constructor(cause: unknown, attempts: number, retryable = true) {
+    const message =
+      cause instanceof Error ? cause.message : 'Network request failed';
+    super(`Network error after ${attempts} attempt(s): ${message}`);
+    this.name = 'BabySeaNetworkError';
+    this.cause = cause;
+    this.attempts = attempts;
+    this.retryable = retryable;
+  }
+}
+
+/**
+ * Error thrown by `waitForGeneration()` / `generateAndWait()` when the
+ * underlying generation reaches a terminal failure state (`failed` or
+ * `canceled`). The full {@link Generation} record is attached so callers
+ * can inspect `generation_error_code`, timing, and partial output.
+ */
+export class BabySeaGenerationFailedError extends Error {
+  readonly generation: Generation;
+  readonly generation_id: string;
+  readonly generation_status: 'failed' | 'canceled';
+  readonly generation_error_code?: string;
+
+  constructor(generation: Generation) {
+    const message =
+      generation.generation_error ??
+      `Generation ${generation.generation_id} ${generation.generation_status}`;
+    super(message);
+    this.name = 'BabySeaGenerationFailedError';
+    this.generation = generation;
+    this.generation_id = generation.generation_id;
+    this.generation_status = generation.generation_status as
+      | 'failed'
+      | 'canceled';
+    this.generation_error_code = generation.generation_error_code;
+  }
+}
+
+/**
+ * Error thrown by `waitForGeneration()` when the polling deadline is
+ * reached before the generation enters a terminal state.
+ */
+export class BabySeaGenerationTimeoutError extends Error {
+  readonly generation_id: string;
+  readonly timeoutMs: number;
+  readonly lastStatus: Generation['generation_status'];
+
+  constructor(
+    generationId: string,
+    timeoutMs: number,
+    lastStatus: Generation['generation_status'],
+  ) {
+    super(
+      `Timed out after ${timeoutMs}ms waiting for generation ${generationId} (last status: ${lastStatus})`,
+    );
+    this.name = 'BabySeaGenerationTimeoutError';
+    this.generation_id = generationId;
+    this.timeoutMs = timeoutMs;
+    this.lastStatus = lastStatus;
   }
 }

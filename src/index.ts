@@ -1,5 +1,13 @@
 export { BabySea } from './client';
-export { BabySeaError, BabySeaTimeoutError, BabySeaRetryError } from './errors';
+export {
+  BabySeaError,
+  BabySeaGenerationFailedError,
+  BabySeaGenerationTimeoutError,
+  BabySeaNetworkError,
+  BabySeaRetryError,
+  BabySeaTimeoutError,
+} from './errors';
+export { SDK_NAME, SDK_VERSION } from './version';
 export type {
   // Client
   BabySeaOptions,
