@@ -50,6 +50,9 @@ export type {
   // /v1/generate/image
   ImageGenerationParams,
   ImageGenerationData,
+  InferenceProvider,
+  GenerationProviderOrder,
+  GenerationProviderOrderFastest,
   // /v1/generate/video
   VideoGenerationParams,
   VideoGenerationData,

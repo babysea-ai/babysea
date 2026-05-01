@@ -36,6 +36,72 @@ const REGION_URLS: Record<BabySeaRegion, string> = {
 const DEFAULT_BASE_URL = REGION_URLS.us;
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
+
+/**
+ * SDK package version. Kept in sync with `package.json` by the release
+ * pipeline. Surfaced on every request through the `X-BabySea-SDK-Version`
+ * header so the platform can correlate behavior with client versions.
+ */
+const SDK_VERSION = '1.4.2';
+const SDK_NAME = 'babysea-node';
+
+/**
+ * Coarse runtime classification used in SDK telemetry headers.
+ * Detection is best-effort and never throws.
+ */
+type SdkRuntime =
+  | 'node'
+  | 'deno'
+  | 'bun'
+  | 'workerd'
+  | 'edge'
+  | 'browser'
+  | 'unknown';
+
+function detectRuntime(): { runtime: SdkRuntime; version?: string } {
+  const g = globalThis as Record<string, unknown>;
+
+  // Bun
+  const bun = g.Bun as { version?: string } | undefined;
+  if (bun) return { runtime: 'bun', version: bun.version };
+
+  // Deno
+  const deno = g.Deno as { version?: { deno?: string } } | undefined;
+  if (deno) return { runtime: 'deno', version: deno.version?.deno };
+
+  // Cloudflare Workers (workerd)
+  const navigatorRef = g.navigator as { userAgent?: string } | undefined;
+  if (navigatorRef?.userAgent === 'Cloudflare-Workers') {
+    return { runtime: 'workerd' };
+  }
+
+  // Generic edge runtimes (Vercel Edge, Netlify Edge)
+  if (typeof g.EdgeRuntime === 'string' || g.EdgeRuntime !== undefined) {
+    return { runtime: 'edge' };
+  }
+
+  // Node.js
+  const proc = g.process as
+    | { versions?: { node?: string; bun?: string } }
+    | undefined;
+  if (proc?.versions?.node) {
+    return { runtime: 'node', version: proc.versions.node };
+  }
+
+  // Browser
+  if (typeof g.window !== 'undefined' && typeof g.document !== 'undefined') {
+    return { runtime: 'browser' };
+  }
+
+  return { runtime: 'unknown' };
+}
+
+const RUNTIME_INFO = detectRuntime();
+const SDK_USER_AGENT = `${SDK_NAME}/${SDK_VERSION} (${RUNTIME_INFO.runtime}${
+  RUNTIME_INFO.version ? `/${RUNTIME_INFO.version}` : ''
+})`;
+const IS_BROWSER = RUNTIME_INFO.runtime === 'browser';
+
 /**
  * BabySea API client
  *
@@ -389,11 +455,18 @@ export class BabySea {
   ): Promise<ApiResponse<T>> {
     let lastError: BabySeaError | undefined;
     const maxAttempts = this.maxRetries + 1;
+    // POST/PUT/PATCH are only safe to retry on network failure when the
+    // caller opted into idempotency. GET/DELETE/HEAD are always safe.
+    const isIdempotentMethod =
+      method === 'GET' || method === 'DELETE' || method === 'HEAD';
+    const hasIdempotencyKey = Boolean(extraHeaders?.['Idempotency-Key']);
+    const canRetryNetwork = isIdempotentMethod || hasIdempotencyKey;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         return await this.doRequest<T>(method, path, body, extraHeaders);
       } catch (err) {
+        // Structured retryable API error (5xx, 429, etc.)
         if (err instanceof BabySeaError && err.retryable) {
           lastError = err;
 
@@ -404,9 +477,20 @@ export class BabySea {
           // If we got Retry-After, use that; otherwise exponential backoff
           const waitMs = err.rateLimit?.retryAfter
             ? err.rateLimit.retryAfter * 1000
-            : Math.min(1000 * Math.pow(2, attempt - 1), 30_000);
+            : computeBackoffMs(attempt);
 
           await sleep(waitMs);
+          continue;
+        }
+
+        // Network-level transient failure (DNS, ECONNRESET, fetch TypeError,
+        // socket hangup, etc.). Only retry when it's safe to do so.
+        if (canRetryNetwork && isRetryableNetworkError(err)) {
+          if (attempt >= maxAttempts) {
+            throw err;
+          }
+
+          await sleep(computeBackoffMs(attempt));
           continue;
         }
 
@@ -429,8 +513,21 @@ export class BabySea {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       Accept: 'application/json',
+      'X-BabySea-SDK-Name': SDK_NAME,
+      'X-BabySea-SDK-Version': SDK_VERSION,
+      'X-BabySea-SDK-Runtime': RUNTIME_INFO.runtime,
+      ...(RUNTIME_INFO.version
+        ? { 'X-BabySea-SDK-Runtime-Version': RUNTIME_INFO.version }
+        : {}),
       ...extraHeaders,
     };
+
+    // `User-Agent` is a forbidden header in the browser fetch spec and will
+    // be stripped (with a console warning) in user agents. Set it everywhere
+    // else so server logs / observability can see SDK + runtime info.
+    if (!IS_BROWSER) {
+      headers['User-Agent'] = SDK_USER_AGENT;
+    }
 
     if (body) {
       headers['Content-Type'] = 'application/json';
@@ -516,3 +613,55 @@ function parseRateLimitHeaders(headers: Headers): RateLimitInfo | undefined {
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Exponential backoff with full jitter, capped at 30s.
+ * Spreading retries with jitter prevents thundering-herd when many
+ * clients retry the same upstream incident at the same time.
+ */
+function computeBackoffMs(attempt: number): number {
+  const base = Math.min(1000 * Math.pow(2, attempt - 1), 30_000);
+  return Math.floor(Math.random() * base);
+}
+
+/**
+ * Detect transient network failures that are safe to retry on idempotent
+ * requests. We deliberately do NOT retry application errors, SSL failures,
+ * or `AbortError` (those bubble up as `BabySeaTimeoutError`).
+ */
+function isRetryableNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+
+  // `BabySeaTimeoutError` is intentionally not retried here - the caller
+  // configured an explicit timeout and we should respect it.
+  if (err.name === 'BabySeaTimeoutError') return false;
+  if (err.name === 'BabySeaError') return false;
+
+  // `fetch()` throws `TypeError` for network-level failures across Node,
+  // Undici, browsers, Workers, and Deno (e.g. DNS, connection reset,
+  // socket hangup, "fetch failed").
+  if (err.name === 'TypeError') return true;
+
+  // Node / Undici expose a `code` property for socket-level errors.
+  const code = (err as { code?: string }).code;
+  if (code) {
+    return RETRYABLE_NETWORK_CODES.has(code);
+  }
+
+  return false;
+}
+
+const RETRYABLE_NETWORK_CODES = new Set<string>([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'ENETDOWN',
+  'EHOSTUNREACH',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+]);

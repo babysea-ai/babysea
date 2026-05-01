@@ -128,6 +128,32 @@ console.log(result.data.generation_id);
 
 ---
 
+## Models & Pricing
+
+The full model catalog, per-model pricing, and per-model input schemas are
+published on babysea.ai. They are the source of truth for what each model
+accepts and how much each generation costs.
+
+| Page                                                         | What you get                                                                                                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [babysea.ai/model-pricing](https://babysea.ai/model-pricing) | Credits per generation for every image model, per-second / per-resolution / audio pricing for video models, with the BabySea credit-to-USD rate. |
+| [babysea.ai/model-schema](https://babysea.ai/model-schema)   | Full input schema per model: prompt, ratios, output formats, durations, resolutions, audio, supported provider stack, and runnable code samples. |
+| [babysea.ai/pricing-plan](https://babysea.ai/pricing-plan)   | Subscription plans, included credits, rate limits, and SLAs.                                                                                     |
+
+The same data is also available programmatically:
+
+```ts
+const { data } = await client.library.models();
+// data.models[].model_pricing      → number | Record<resolution, number>
+// data.models[].model_supported_provider
+// data.models[].schema              → input fields accepted by the model
+```
+
+And you can preview cost for a specific request before executing it with
+[`client.estimate()`](#estimatemodel-options---preview-cost-before-generating).
+
+---
+
 ## Configuration
 
 ```ts
@@ -177,11 +203,16 @@ const result = await client.generate('bfl/flux-schnell', {
     // input image URLs (for img2img models)
     'https://example.com/reference.jpg',
   ],
-  generation_provider_order: 'replicate, fal', // optional, model-dependent default
+  generation_provider_order: 'fastest', // default: predictive router picks the best provider per region
 });
 
 const { generation_id, generation_provider_order } = result.data;
 ```
+
+> Pass `'fastest'` (the default for every multi-provider model) to let
+> BabySea's predictive router select the provider at request time based
+> on real execution outcomes. Pass an explicit string like
+> `'replicate, fal'` to pin the failover order yourself.
 
 #### Idempotency (recommended for production)
 
@@ -223,7 +254,7 @@ const result = await client.generate('google/veo-2', {
   generation_ratio: '16:9',
   generation_output_format: 'mp4',
   generation_input_file: ['https://example.com/reference.jpg'],
-  generation_provider_order: 'replicate, fal',
+  generation_provider_order: 'fastest',
 });
 
 // Duration + resolution video model
@@ -602,6 +633,30 @@ The SDK surfaces rate-limit metadata through `BabySeaError.rateLimit` when the A
 
 When a response is retryable, the SDK automatically respects `Retry-After` and retries up to `maxRetries`.
 
+Transient network failures (DNS resolution, connection reset, socket
+hangup, undici socket errors) are also retried under the same
+`maxRetries` budget. To preserve exactly-once semantics, non-idempotent
+methods (`POST`, `PUT`, `PATCH`) are only retried on network failure
+when you supply an `Idempotency-Key`.
+
+---
+
+## SDK Telemetry
+
+Every request carries a small set of diagnostic headers so the platform
+can correlate behavior with client versions and runtimes:
+
+| Header                          | Example value                                                        |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `X-BabySea-SDK-Name`            | `babysea-node`                                                       |
+| `X-BabySea-SDK-Version`         | `1.4.2`                                                              |
+| `X-BabySea-SDK-Runtime`         | `node` / `deno` / `bun` / `workerd` / `edge` / `browser` / `unknown` |
+| `X-BabySea-SDK-Runtime-Version` | `20.11.1` (when known)                                               |
+| `User-Agent`                    | `babysea-node/1.4.2 (node/20.11.1)` (skipped in browsers)            |
+
+No request bodies, prompts, or PII are added by these headers - they
+contain only SDK and runtime metadata.
+
 ---
 
 ## Regions
@@ -616,6 +671,25 @@ Custom base URLs are supported via the `baseUrl` option.
 
 BabySea selects a provider from the set supported by each model and current account configuration. Selection adapts over time based on observed latency, cost, and success rate; you can pin or constrain the order with `generation_provider_order`.
 
+### Supported inference providers
+
+| Provider      | ID             |
+| ------------- | -------------- |
+| Alibaba Cloud | `alibabacloud` |
+| BFL           | `bfl`          |
+| BytePlus      | `byteplus`     |
+| Cloudflare    | `cloudflare`   |
+| FAL           | `fal`          |
+| OpenAI        | `openai`       |
+| Replicate     | `replicate`    |
+| Runway        | `runway`       |
+
+Pass `generation_provider_order: 'fastest'` (default for every
+multi-provider model) to let the platform pick. Pass an explicit
+ordering string (e.g. `'replicate, fal'`, `'bfl, replicate, cloudflare'`)
+to pin failover yourself. Use `client.library.models()` to see the exact
+stack each model supports.
+
 ---
 
 ## Open Source
@@ -629,6 +703,47 @@ You are free to:
 - contribute improvements
 
 We welcome contributions! Feel free to open issues or submit pull requests on our [GitHub repository](https://github.com/babysea-ai/babysea).
+
+---
+
+## Resources
+
+### Product
+
+| Page                                                         | Description                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| [docs.babysea.ai](https://docs.babysea.ai)                   | Full documentation: setup, dashboard, API reference, and changelog. |
+| [babysea.ai/model-pricing](https://babysea.ai/model-pricing) | Per-model pricing for every image and video model.                  |
+| [babysea.ai/model-schema](https://babysea.ai/model-schema)   | Per-model input schema and runnable code samples.                   |
+| [babysea.ai/pricing-plan](https://babysea.ai/pricing-plan)   | Subscription plans, included credits, rate limits, SLAs.            |
+| [babysea.ai/faq](https://babysea.ai/faq)                     | Frequently asked questions.                                         |
+| [babysea.ai/support](https://babysea.ai/support)             | Contact support.                                                    |
+| [status.babysea.ai](https://status.babysea.ai)               | Real-time platform status and incident history (US, EU, JP).        |
+
+### Legal & compliance
+
+Use the pages below for procurement, vendor review, and compliance review.
+If you need a counter-signed copy of the DPA or the current subprocessor
+list for your records, request one from [babysea.ai/support](https://babysea.ai/support).
+
+| Document                                                                        | When you need it                                                                 |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [Terms of Use](https://babysea.ai/terms-of-use)                                 | Master agreement governing your use of BabySea.                                  |
+| [API & Inference Terms](https://babysea.ai/api-and-inference)                   | Terms specific to the API, SDK, and inference workloads.                         |
+| [Service Level Terms](https://babysea.ai/service-level-terms)                   | Uptime SLA, support response, and credit remedies.                               |
+| [Account & Workspace Terms](https://babysea.ai/account-and-workspace)           | Account, workspace, and team-membership terms.                                   |
+| [Billing & Credit Terms](https://babysea.ai/billing-and-credit)                 | Credit lifecycle, refunds, plan changes, and invoicing.                          |
+| [Privacy Policy](https://babysea.ai/privacy-policy)                             | What we collect, how we use it, your rights.                                     |
+| [Data Processing Agreement (DPA)](https://babysea.ai/data-processing-agreement) | GDPR / UK GDPR processor terms. BabySea acts as **processor** for customer data. |
+| [List of Subprocessors](https://babysea.ai/list-of-subprocessors)               | Current subprocessors (inference providers, infra, observability).               |
+| [Data Sovereignty](https://babysea.ai/data-sovereignty)                         | Where each region stores and processes data (US, EU, JP).                        |
+| [Data Lifecycle](https://babysea.ai/data-lifecycle)                             | Retention, deletion, and export of generations and account data.                 |
+| [Cookies Policy](https://babysea.ai/cookies-policy)                             | Cookies used by babysea.ai.                                                      |
+| [AI Principles](https://babysea.ai/ai-principles)                               | Our principles for operating a generative-media control plane.                   |
+| [AI Service Terms](https://babysea.ai/ai-service-terms)                         | Acceptable use of generated content.                                             |
+| [AI Providers Policy](https://babysea.ai/ai-providers-policy)                   | How upstream providers fit into our service.                                     |
+| [Security](https://babysea.ai/security)                                         | Security overview, controls, and disclosure program.                             |
+| [Acknowledgments](https://babysea.ai/acknowledgments)                           | Security researchers credited for responsible disclosure.                        |
 
 ---
 

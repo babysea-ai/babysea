@@ -54,16 +54,32 @@ jobs:
 
       - name: Strip monorepo-only devDependencies for standalone build
         # The source-of-truth lives in a pnpm monorepo where devDependencies
-        # use workspace:* protocol for shared eslint/prettier/tsconfig.
-        # The published package never needs them; remove them here so a
-        # standalone npm install succeeds on the runner.
+        # use the `workspace:*` and `catalog:` protocols. Plain npm understands
+        # neither. We:
+        #
+        #   - drop every `workspace:*` entry (internal eslint/prettier/tsconfig
+        #     configs are never needed to build or publish the package), and
+        #   - resolve every `catalog:` entry to the literal version recorded
+        #     in pnpm-workspace.yaml (currently just `tsup`).
+        #
+        # The CATALOG map is intentionally hardcoded so the standalone runner
+        # never has to read pnpm-workspace.yaml from a sibling repo.
         run: |
           node -e "
             const fs = require('fs');
+            const CATALOG = {
+              tsup: '8.5.1',
+            };
             const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
-            for (const dep of Object.keys(pkg.devDependencies || {})) {
-              if ((pkg.devDependencies[dep] || '').startsWith('workspace:')) {
+            for (const [dep, ver] of Object.entries(pkg.devDependencies || {})) {
+              if ((ver || '').startsWith('workspace:')) {
                 delete pkg.devDependencies[dep];
+              } else if ((ver || '').startsWith('catalog:')) {
+                if (!CATALOG[dep]) {
+                  console.error('::error::Missing catalog mapping for ' + dep);
+                  process.exit(1);
+                }
+                pkg.devDependencies[dep] = '^' + CATALOG[dep];
               }
             }
             // These scripts depend on the stripped devDeps; not needed to build.

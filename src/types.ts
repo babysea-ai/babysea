@@ -373,37 +373,72 @@ export interface GenerationListData {
 
 // ─── /v1/generate/image (POST) ───
 
+/**
+ * All BabySea-supported inference providers.
+ *
+ * BabySea normalizes execution across these providers as a single
+ * control plane. Each model is backed by a fixed subset of this list;
+ * use `client.library.models()` to see which providers serve a given
+ * model.
+ */
 export type InferenceProvider =
-  | 'replicate'
-  | 'fal'
+  | 'alibabacloud'
+  | 'bfl'
   | 'byteplus'
   | 'cloudflare'
-  | 'bfl'
-  | 'openai';
+  | 'fal'
+  | 'openai'
+  | 'replicate'
+  | 'runway';
 
 /**
- * All valid provider order strings for image generation.
+ * Sentinel that asks BabySea's predictive router to pick the
+ * fastest provider at request time, based on real execution
+ * outcomes (latency, cost, success rate) measured in your region.
  *
- * - replicate
- * - fal
- * - byteplus
- * - cloudflare
- * - bfl
- * - openai
+ * `'fastest'` is the default for every multi-provider model. Pass
+ * an explicit ordered string (e.g. `'replicate, fal'`) to pin the
+ * order yourself and bypass adaptive selection.
+ */
+export type GenerationProviderOrderFastest = 'fastest';
+
+/**
+ * All valid `generation_provider_order` strings accepted by the API.
  *
- * See shared-constants.ts for all valid combinations.
+ * Mirrors `ALL_GENERATION_PROVIDER_ORDERS` on the server. Each model
+ * accepts a subset of these values; use `client.library.models()` to
+ * see the supported stack per model. When omitted, the model's default
+ * order (`'fastest'` for multi-provider models) is used.
  */
 export type GenerationProviderOrder =
+  | GenerationProviderOrderFastest
+  // Single-provider stack
   | 'replicate'
-  | 'replicate, fal'
+  // 2-provider stacks
   | 'bfl, replicate'
+  | 'replicate, bfl'
   | 'openai, replicate'
+  | 'replicate, openai'
   | 'runway, replicate'
-  | 'byteplus, replicate, fal'
-  | 'openai, replicate, fal'
-  | 'replicate, fal, cloudflare'
+  | 'replicate, runway'
+  | 'replicate, fal'
+  | 'fal, replicate'
+  // 3-provider stacks
+  | 'alibabacloud, replicate, fal'
+  | 'replicate, fal, alibabacloud'
+  | 'fal, alibabacloud, replicate'
   | 'bfl, replicate, cloudflare'
-  | 'alibabacloud, replicate, fal';
+  | 'replicate, cloudflare, bfl'
+  | 'cloudflare, bfl, replicate'
+  | 'byteplus, replicate, fal'
+  | 'replicate, fal, byteplus'
+  | 'fal, byteplus, replicate'
+  | 'openai, replicate, fal'
+  | 'replicate, fal, openai'
+  | 'fal, openai, replicate'
+  | 'replicate, fal, cloudflare'
+  | 'fal, cloudflare, replicate'
+  | 'cloudflare, replicate, fal';
 
 export interface ImageGenerationParams {
   /** Text prompt. Required. */
@@ -424,11 +459,19 @@ export interface ImageGenerationParams {
   /**
    * Preferred inference provider order.
    *
-   * Most models accept `"replicate, fal"` or `"fal, replicate"`.
-   * Some models also support additional providers such as BytePlus, Cloudflare, BFL, or OpenAI.
-   * Use `client.library.models()` to check supported providers per model.
+   * Most multi-provider models accept `'fastest'` (default) plus explicit
+   * orderings such as `'replicate, fal'` or `'fal, replicate'`. Some models
+   * also support additional providers (BytePlus, Cloudflare, BFL, OpenAI,
+   * Alibaba Cloud, Runway). Use `client.library.models()` to check the
+   * supported stack per model.
    *
-   * When omitted, the model's default order is used.
+   * - `'fastest'` → BabySea's predictive router selects the best provider
+   *   at request time based on real execution outcomes (latency, cost,
+   *   success rate) measured in your region.
+   * - Explicit string → Pin the failover order yourself.
+   *
+   * When omitted, the model's default (`'fastest'` for multi-provider
+   * models) is used.
    */
   generation_provider_order?: GenerationProviderOrder;
 
@@ -488,19 +531,13 @@ export interface VideoGenerationParams {
    * Preferred inference provider order.
    *
    * Each model has 1 fixed provider stack. Use `client.library.models()` to check
-   * the supported stack per model. When omitted, the model's default order is used.
+   * the supported stack per model. When omitted, the model's default order
+   * (`'fastest'` for multi-provider models) is used.
+   *
+   * Pass `'fastest'` to let BabySea's predictive router pick the best provider
+   * at request time based on real execution outcomes.
    */
-  generation_provider_order?:
-    | 'replicate'
-    | 'replicate, fal'
-    | 'bfl, replicate'
-    | 'openai, replicate'
-    | 'runway, replicate'
-    | 'byteplus, replicate, fal'
-    | 'openai, replicate, fal'
-    | 'replicate, fal, cloudflare'
-    | 'bfl, replicate, cloudflare'
-    | 'alibabacloud, replicate, fal';
+  generation_provider_order?: GenerationProviderOrder;
 
   /** Model-specific parameters (varies per model). */
   [key: string]: unknown;
