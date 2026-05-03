@@ -10,9 +10,9 @@ export interface BabySeaOptions {
   /**
    * Region for the API endpoint.
    *
-   * - `'us'` → US regional endpoint
-   * - `'eu'` → EU regional endpoint
-   * - `'jp'` → APAC regional endpoint
+   * - `'us'` ➜ US regional endpoint
+   * - `'eu'` ➜ EU regional endpoint
+   * - `'jp'` ➜ APAC regional endpoint
    *
    * Defaults to `'us'` when both `region` and `baseUrl` are omitted.
    * Ignored when `baseUrl` is provided.
@@ -193,8 +193,8 @@ export interface Model {
   /**
    * Credits per generation.
    *
-   * - **Flat-priced models** → `number` (credits per generation or per second for duration-based video models).
-   * - **Resolution-priced models** → `Record<string, number>` mapping each resolution to its per-second cost.
+   * - **Flat-priced models** ➜ `number` (credits per generation or per second for duration-based video models).
+   * - **Resolution-priced models** ➜ `Record<string, number>` mapping each resolution to its per-second cost.
    * - `undefined` when no pricing entry exists for the model.
    */
   model_pricing: number | Record<string, number> | undefined;
@@ -465,10 +465,10 @@ export interface ImageGenerationParams {
    * Alibaba Cloud, Runway). Use `client.library.models()` to check the
    * supported stack per model.
    *
-   * - `'fastest'` → BabySea's predictive router selects the best provider
+   * - `'fastest'` ➜ BabySea's predictive router selects the best provider
    *   at request time based on real execution outcomes (latency, cost,
    *   success rate) measured in your region.
-   * - Explicit string → Pin the failover order yourself.
+   * - Explicit string ➜ Pin the failover order yourself.
    *
    * When omitted, the model's default (`'fastest'` for multi-provider
    * models) is used.
@@ -577,12 +577,12 @@ export type GenerationData = ImageGenerationData | VideoGenerationData;
 /**
  * Named API key scopes that control access to v1 endpoints.
  *
- * - `generation:write`  → POST /v1/generate/image/:model, POST /v1/generate/video/:model
- * - `generation:read`   → GET  /v1/content/:id, GET /v1/content/list
- * - `generation:delete` → DELETE /v1/content/:id, POST /v1/content/generation/cancel/:id
- * - `account:read`      → GET  /v1/user/account, /v1/user/billing, /v1/usage, /v1/status
- * - `health:read`       → GET  /v1/health/*
- * - `library:read`      → GET  /v1/library/*, /v1/estimate/*
+ * - `generation:write`  ➜ POST /v1/generate/image/:model, POST /v1/generate/video/:model
+ * - `generation:read`   ➜ GET  /v1/content/:id, GET /v1/content/list
+ * - `generation:delete` ➜ DELETE /v1/content/:id, POST /v1/content/generation/cancel/:id
+ * - `account:read`      ➜ GET  /v1/user/account, /v1/user/billing, /v1/usage, /v1/status
+ * - `health:read`       ➜ GET  /v1/health/*
+ * - `library:read`      ➜ GET  /v1/library/*, /v1/estimate/*
  */
 export type ApiKeyScope =
   | 'generation:write'

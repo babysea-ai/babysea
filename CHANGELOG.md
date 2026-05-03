@@ -5,12 +5,45 @@ All notable changes to the `babysea` SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased - 2026-05-03
+
+### Changed
+
+- Refreshed the README to match the `adaptive-island` format with a
+  centered header, grouped Shields badges, runtime contract summary,
+  status section, and clearer positioning for the SDK.
+- Added a signed deploy helper for publishing `packages/sdk` to the
+  standalone `babysea-ai/babysea` repository with the same guarded flow
+  used by the OSS package deploy scripts.
+- Added a guarded npm publish helper for the SDK with validate-only,
+  dry-run, dist-tag, OTP, token-auth, version-existence, and package
+  contents checks before `npm publish`.
+- Added SDK release-flow documentation covering public repo deploy and
+  npm publish validation/dry-run/publish steps.
+- Made the SDK package metadata and lint/format config self-contained so
+  the standalone public repository can install, check, and build without
+  private monorepo `workspace:` or `catalog:` dependencies.
+- Restored the README npm version badge using the live npm badge source
+  instead of a generated local SVG.
+- Replaced hard-coded telemetry version examples in the README with a
+  release-agnostic `<package-version>` placeholder.
+- Normalized the Apache 2.0 `LICENSE` wording and copyright notice to
+  the current BabySea package format.
+
+### Removed
+
+- Removed BetterStack status badges from the SDK README.
+- Removed generated local README badge assets, the badge generation
+  script, and the `badge-maker` development dependency. Runtime SDK
+  version generation remains in place for telemetry and public
+  `SDK_VERSION`/`SDK_NAME` exports.
+
 ## [1.4.3] - 2026-05-01
 
 ### Added
 
 - **`waitForGeneration(id, options?)`.** Polls a generation to a terminal
-  state (`succeeded` / `failed` / `canceled`). Convenience over
+  state (`succeeded`/`failed`/`canceled`). Convenience over
   `getGeneration()` for scripts, demos, and synchronous flows; production
   workloads should still prefer webhooks. Configurable `timeout`
   (default 10 min), `interval` (default 2 s, clamped to ≥ 500 ms), and
@@ -37,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `isGenerationFailed`, `isGenerationCanceled`, `isCreditLowBalance`,
   `isWebhookTest`. Replaces hand-rolled discriminated-union checks in
   webhook handlers with single-line, type-narrowing predicates.
-- **Public `SDK_VERSION` / `SDK_NAME` exports.** Surfaced from the new
+- **Public `SDK_VERSION`/`SDK_NAME` exports.** Surfaced from the new
   generated `version.ts` so applications can read the active SDK
   version at runtime (useful for support tickets, telemetry, and
   conditional behavior across SDK upgrades).
@@ -81,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same union instead of redefining a partial copy.
 - **SDK telemetry headers.** Every request now sends
   `X-BabySea-SDK-Name`, `X-BabySea-SDK-Version`, `X-BabySea-SDK-Runtime`
-  (`node` / `deno` / `bun` / `workerd` / `edge` / `browser` / `unknown`),
+  (`node`/`deno`/`bun`/`workerd`/`edge`/`browser`/`unknown`),
   `X-BabySea-SDK-Runtime-Version` (when known), and a Stripe-style
   `User-Agent` (skipped in browsers where it is a forbidden header).
   Helps the platform correlate behavior with client versions and runtimes.

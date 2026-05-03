@@ -76,7 +76,7 @@ export class BabySeaRetryError extends Error {
  * error family to consumers.
  */
 export class BabySeaNetworkError extends Error {
-  /** Underlying transport error from `fetch` / runtime. */
+  /** Underlying transport error from `fetch`/runtime. */
   readonly cause: unknown;
 
   /**
@@ -101,7 +101,7 @@ export class BabySeaNetworkError extends Error {
 }
 
 /**
- * Error thrown by `waitForGeneration()` / `generateAndWait()` when the
+ * Error thrown by `waitForGeneration()`/`generateAndWait()` when the
  * underlying generation reaches a terminal failure state (`failed` or
  * `canceled`). The full {@link Generation} record is attached so callers
  * can inspect `generation_error_code`, timing, and partial output.

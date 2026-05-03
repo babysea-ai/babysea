@@ -31,7 +31,6 @@ import type {
   StatusData,
   UsageData,
 } from './types';
-
 import { SDK_NAME, SDK_VERSION } from './version';
 
 const API_BASE_DOMAIN = 'babysea.ai';
@@ -392,8 +391,8 @@ export class BabySea {
    * Generate image or video
    *
    * Automatically routes to the correct endpoint based on the parameters:
-   * - If `generation_duration` is present → `POST /v1/generate/video/{model_identifier}`
-   * - Otherwise → `POST /v1/generate/image/{model_identifier}`
+   * - If `generation_duration` is present ➜ `POST /v1/generate/video/{model_identifier}`
+   * - Otherwise ➜ `POST /v1/generate/image/{model_identifier}`
    *
    * @param modelIdentifier - Model identifier (e.g. `"bfl/flux-schnell"`, `"google/veo-2"`).
    * @param params - Generation parameters. See {@link GenerationParams}.
@@ -629,10 +628,7 @@ export class BabySea {
         // on a non-idempotent method, unknown fetch error, etc.) is wrapped
         // so consumers get a single typed error family. BabySeaError and
         // BabySeaTimeoutError are passed through unchanged.
-        if (
-          err instanceof BabySeaError ||
-          err instanceof BabySeaTimeoutError
-        ) {
+        if (err instanceof BabySeaError || err instanceof BabySeaTimeoutError) {
           throw err;
         }
 
@@ -670,7 +666,7 @@ export class BabySea {
 
     // `User-Agent` is a forbidden header in the browser fetch spec and will
     // be stripped (with a console warning) in user agents. Set it everywhere
-    // else so server logs / observability can see SDK + runtime info.
+    // else so server logs/observability can see SDK + runtime info.
     if (!IS_BROWSER) {
       headers['User-Agent'] = SDK_USER_AGENT;
     }
@@ -788,7 +784,7 @@ function isRetryableNetworkError(err: unknown): boolean {
   // socket hangup, "fetch failed").
   if (err.name === 'TypeError') return true;
 
-  // Node / Undici expose a `code` property for socket-level errors.
+  // Node/Undici expose a `code` property for socket-level errors.
   const code = (err as { code?: string }).code;
   if (code) {
     return RETRYABLE_NETWORK_CODES.has(code);

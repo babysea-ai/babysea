@@ -24,7 +24,7 @@ const banner = `// AUTO-GENERATED - do not edit by hand.
 `;
 
 const contents = `${banner}
-export const SDK_VERSION = ${JSON.stringify(pkg.version)};
+export const SDK_VERSION = '${pkg.version}';
 export const SDK_NAME = 'babysea-node';
 `;
 
