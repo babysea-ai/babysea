@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased - 2026-05-03
 
+### Added
+
+- Added `BabySea OSS taxonomy` in `README.md`.
+
 ### Changed
 
 - Refreshed the README to match the `adaptive-island` format with a

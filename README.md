@@ -8,6 +8,7 @@ One API, one schema, one lifecycle across image and video inference providers.**
 <br/>
 
 [![Open Source](https://img.shields.io/badge/open%20source-BabySea-48d1cc.svg)](https://babysea.ai)
+[![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#babysea-oss-taxonomy)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-production-2ea44f.svg)](#status)
 [![npm version](https://img.shields.io/npm/v/babysea.svg?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/babysea)
@@ -27,6 +28,32 @@ One API, one schema, one lifecycle across image and video inference providers.**
 _Works across Node.js, Edge runtimes (Vercel, Cloudflare Workers), and browsers._
 
 </div>
+
+---
+
+## BabySea OSS taxonomy
+
+BabySea open source projects are organized into three categories:
+
+### OSS Primitives
+
+[![BabySea OSS Primitives](https://img.shields.io/badge/oss%20primitives-BabySea-ea580c.svg)](#babysea-oss-taxonomy)
+
+Production-derived infrastructure patterns extracted from BabySea's execution control plane. These projects isolate one hard system invariant at a time, such as provider routing, credit settlement, idempotency, failover, reconciliation, or operational safety.
+
+### SDKs
+
+[![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#babysea-oss-taxonomy)
+
+Typed developer entry points into BabySea's execution control plane. SDKs provide application developers with a clean interface for creating, tracking, managing, and settling generative-media workloads without rebuilding provider-specific lifecycle logic.
+
+### OSS Starters
+
+[![BabySea OSS Starters](https://img.shields.io/badge/oss%20starters-BabySea-0284c7.svg)](#babysea-oss-taxonomy)
+
+Deployable reference applications that help builders adopt BabySea patterns quickly. Starters combine product UI, auth, billing, storage, rate limits, and BabySea SDK execution into working examples optimized for onboarding and implementation.
+
+---
 
 ## What this is
 
