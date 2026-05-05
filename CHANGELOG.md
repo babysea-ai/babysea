@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added `BabySea OSS taxonomy` in `README.md`.
+- Fix table formatting in `README.md`.
 
 ### Changed
 

@@ -164,7 +164,7 @@ console.log(est.data.cost_total_consumed); // 0.008
 
 // Generate an image
 const result = await client.generate('bfl/flux-schnell', {
-  generation_prompt: 'A baby seal plays in Arctic',
+  generation_prompt: 'A baby seal plays in the Arctic',
   generation_ratio: '16:9',
   generation_output_format: 'png',
   generation_output_number: 1,
@@ -269,7 +269,7 @@ const idempotencyKey = randomUUID();
 
 const created = await client.generate(
   'bfl/flux-schnell',
-  { generation_prompt: 'A baby seal plays in Arctic' },
+  { generation_prompt: 'A baby seal plays in the Arctic' },
   { idempotencyKey },
 );
 
@@ -289,7 +289,7 @@ if (created.idempotency_replayed) {
 // Duration-only video model
 const result = await client.generate('google/veo-2', {
   // Required
-  generation_prompt: 'A baby seal plays in Arctic',
+  generation_prompt: 'A baby seal plays in the Arctic',
   generation_duration: 5, // seconds (range varies per model)
 
   // Optional

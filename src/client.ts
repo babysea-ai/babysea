@@ -122,7 +122,7 @@ const IS_BROWSER = RUNTIME_INFO.runtime === 'browser';
  *
  * // Generate an image
  * const result = await client.generate('bfl/flux-schnell', {
- *   generation_prompt: 'A baby seal plays in Arctic',
+ *   generation_prompt: 'A baby seal plays in the Arctic',
  * });
  *
  * console.log(result.data.generation_id);
@@ -408,12 +408,12 @@ export class BabySea {
    *
    * // Image generation
    * await client.generate('bfl/flux-schnell', {
-   *   generation_prompt: 'A baby seal plays in Arctic',
+   *   generation_prompt: 'A baby seal plays in the Arctic',
    * });
    *
    * // Video generation
    * await client.generate('google/veo-2', {
-   *   generation_prompt: 'A baby seal plays in Arctic',
+   *   generation_prompt: 'A baby seal plays in the Arctic',
    *   generation_duration: 5,
    * });
    *
@@ -421,7 +421,7 @@ export class BabySea {
    * const idempotencyKey = randomUUID();
    * const created = await client.generate(
    *   'bfl/flux-schnell',
-   *   { generation_prompt: 'A baby seal plays in Arctic' },
+   *   { generation_prompt: 'A baby seal plays in the Arctic' },
    *   { idempotencyKey },
    * );
    *
@@ -471,7 +471,7 @@ export class BabySea {
    * @example
    * ```ts
    * const created = await client.generate('bfl/flux-schnell', {
-   *   generation_prompt: 'A baby seal plays in Arctic',
+   *   generation_prompt: 'A baby seal plays in the Arctic',
    * });
    *
    * const generation = await client.waitForGeneration(
@@ -539,7 +539,7 @@ export class BabySea {
    * @example
    * ```ts
    * const result = await client.generateAndWait('bfl/flux-schnell', {
-   *   generation_prompt: 'A baby seal plays in Arctic',
+   *   generation_prompt: 'A baby seal plays in the Arctic',
    * });
    *
    * console.log(result.data.generation_output_file);
