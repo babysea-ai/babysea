@@ -2,7 +2,7 @@
 
 # 🌊 babysea
 
-**Open source TypeScript SDK for the BabySea execution control plane for generative media.<br/>
+**Production TypeScript SDK for the BabySea execution control plane for generative media.<br/>
 One API, one schema, one lifecycle across image and video inference providers.**
 
 <br/>
@@ -27,6 +27,8 @@ One API, one schema, one lifecycle across image and video inference providers.**
 
 _Works across Node.js, Edge runtimes (Vercel, Cloudflare Workers), and browsers._
 
+_Runtime detection is built in: every request carries SDK/runtime metadata so BabySea can correlate behavior by SDK version and deployment target without collecting prompts or request bodies._
+
 </div>
 
 ---
@@ -49,11 +51,11 @@ BabySea open source projects are organized into three categories:
 
 ## What this is
 
-`babysea` is the TypeScript SDK for BabySea's execution control plane. It gives applications a single typed entry point into generative media execution: send a workload, receive a generation id, and react to lifecycle events.
+`babysea` is the TypeScript SDK for BabySea's execution control plane. It gives applications a single typed entry point into generative media execution: estimate cost, submit a workload, receive a generation id, verify webhooks, observe health, and react to lifecycle events.
 
 BabySea standardizes how image and video workloads run across inference providers. Provider selection, failover, billing, and observability are managed by the platform; provider selection adapts over time based on real execution outcomes.
 
-80+ image and video models. 12+ AI labs. 8+ inference providers. 3 sovereign regions. One contract.
+80+ image and video models. 12+ AI labs. 8+ inference providers. 3 regional endpoints. One contract.
 
 ## Why this exists
 
@@ -72,7 +74,7 @@ In production, teams have to deal with:
 
 As more providers and models emerge, these differences compound, making production behavior increasingly hard to manage by hand.
 
-BabySea turns inconsistent provider behavior into a predictable execution system.
+BabySea turns inconsistent provider behavior into a predictable execution system with one public contract at the request boundary.
 
 The SDK gives you:
 
@@ -82,6 +84,8 @@ The SDK gives you:
 - webhook verification for event-driven completion
 - cost estimation before execution
 - health and library endpoints for operational visibility
+- structured error codes, request IDs, and retryability flags for production incident handling
+- scoped API keys for least-privilege backend, monitoring, and read-only access
 - zero dependencies, using only `fetch` and `crypto.subtle`
 
 The platform behind the SDK adapts provider selection over time based on real execution outcomes (latency, cost, success rate). You can also pin the order explicitly with `generation_provider_order`.
@@ -101,9 +105,37 @@ BabySea treats provider failure as a normal condition and handles it at the syst
 
 No provider SDK, queue client, storage client, or framework adapter is required. The package uses only platform `fetch` and `crypto.subtle`.
 
+## Production reliability
+
+The SDK is intentionally small, but it is built for production execution paths:
+
+| Concern                  | SDK behavior                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Retry storms             | Retry backoff uses exponential backoff with full jitter, capped at 30 seconds, to avoid thundering-herd behavior during incidents.                     |
+| Network transients       | DNS hiccups, connection resets, socket hangups, Undici socket errors, and retryable API errors are handled through typed retry paths.                  |
+| Duplicate-safe creation  | Supply an `Idempotency-Key` for generation writes so safe retries can replay the original response; replayed responses surface `idempotency_replayed`. |
+| Request correlation      | Every success response has a `request_id`; `BabySeaError` exposes `requestId` when the API provides one, plus `code`, `type`, and `retryable`.         |
+| Multi-provider debugging | Structured API errors can include per-provider failure details in `error.body.error.provider_errors`.                                                  |
+| Operational visibility   | `health.*`, `library.*`, `usage()`, `billing()`, and `status()` expose platform, model, provider, account, and usage state through one client.         |
+
+For high-throughput production systems, prefer `generate()` plus webhooks. Use `generateAndWait()` for demos, CLIs, tests, and synchronous workflows.
+
+## Security and enterprise controls
+
+| Control                 | Details                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Scoped API keys         | Use `generate_only`, `read_only`, `monitor_only`, or custom scopes to enforce least privilege. Keep write-capable keys server-side. |
+| Webhook verification    | `verifyWebhook()` validates HMAC-SHA256 signatures with timestamp replay protection and timing-safe comparison.                     |
+| Idempotent generation   | `Idempotency-Key` prevents duplicate generations during safe retries and exposes replay state in the SDK response.                  |
+| Regional endpoints      | `us`, `eu`, and `jp` endpoints keep requests pinned to the region you configure.                                                    |
+| No runtime dependencies | No provider SDKs, queue clients, storage clients, or framework adapters are bundled.                                                |
+| Minimal SDK telemetry   | SDK headers contain package/runtime metadata only; prompts, request bodies, and PII are not added to telemetry headers.             |
+
+Browser runtime support is available, but production generation writes should normally run from your backend with a server-side API key. If you call BabySea from browser code, issue the narrowest possible scoped key for that use case.
+
 ## What this is not
 
-The SDK is not a model host, provider aggregator, billing engine, or data pipeline. Those responsibilities live in the BabySea execution control plane. The SDK stays intentionally small: it normalizes client calls, signs nothing except webhook verification, retries safe failures, and surfaces structured API responses.
+The SDK is not a model host, provider aggregator, billing engine, or data pipeline. Those responsibilities live in the BabySea execution control plane. The SDK stays intentionally small: it normalizes client calls, verifies webhook signatures, retries safe failures, and surfaces structured API responses.
 
 ## Open source
 
@@ -160,7 +192,7 @@ const client = new BabySea({
 // Preview cost before generating
 const est = await client.estimate('bfl/flux-schnell', 2);
 console.log(est.data.credit_balance_can_afford); // true
-console.log(est.data.cost_total_consumed); // 0.008
+console.log(est.data.cost_total_consumed); // 0.010
 
 // Generate an image
 const result = await client.generate('bfl/flux-schnell', {
@@ -174,7 +206,7 @@ console.log(result.data.generation_id);
 // ➜ "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-> Generations are async - you receive a `generation_id` immediately. Use `getGeneration()` or webhooks to handle completion.
+> Generations are async - you receive a `generation_id` immediately. Use `getGeneration()`, `waitForGeneration()`, or webhooks to handle completion. For production throughput, prefer webhooks.
 
 ## Models & Pricing
 
@@ -192,7 +224,8 @@ The same data is also available programmatically:
 
 ```ts
 const { data } = await client.library.models();
-// data.models[].model_pricing      ➜ number | Record<resolution, number>
+// data.models[].model_type         ➜ 'image' | 'video'
+// data.models[].model_pricing      ➜ number | Record<string, number> | undefined
 // data.models[].model_supported_provider
 // data.models[].schema              ➜ input fields accepted by the model
 ```
@@ -303,7 +336,7 @@ const result = await client.generate('google/veo-2', {
 const hd = await client.generate('bytedance/seedance-1-pro', {
   generation_prompt: 'Cinematic drone shot over a coral reef',
   generation_duration: 8,
-  generation_resolution: '1080p', // required for resolution-priced models
+  generation_resolution: '1080p', // optional; defaults per model when omitted
   generation_ratio: '16:9',
 });
 
@@ -311,7 +344,7 @@ const hd = await client.generate('bytedance/seedance-1-pro', {
 const audio = await client.generate('bytedance/seedance-1.5-pro', {
   generation_prompt: 'A music video with rhythmic visuals',
   generation_duration: 5,
-  generation_generate_audio: true, // required for audio-priced models
+  generation_generate_audio: true, // optional; defaults to false when omitted
   generation_ratio: '16:9',
 });
 
@@ -324,11 +357,11 @@ const { generation_id, generation_provider_order } = result.data;
 // Image model - estimate 5 generations
 const est = await client.estimate('bfl/flux-schnell', { count: 5 });
 
-est.data.cost_per_generation; // 0.004 credits
-est.data.cost_total_consumed; // 0.020 credits
-est.data.credit_balance; // 10.000
-est.data.credit_balance_can_afford; // true
-est.data.credit_balance_max_affordable; // 196
+est.data.cost_per_generation; // 0.005 credits
+est.data.cost_total_consumed; // 0.025 credits
+est.data.credit_balance; // 10.000, or null when balance lookup is unavailable
+est.data.credit_balance_can_afford; // true, false, or null
+est.data.credit_balance_max_affordable; // 2000, or null
 
 // Video model - estimate with duration
 const vid = await client.estimate('google/veo-2', { duration: 8 });
@@ -342,16 +375,27 @@ const hd = await client.estimate('bytedance/seedance-1-pro', {
 // Audio-priced video model - estimate with/without audio
 const withAudio = await client.estimate('bytedance/seedance-1.5-pro', {
   duration: 5,
+  resolution: '1080p',
   audio: true,
 });
 const noAudio = await client.estimate('bytedance/seedance-1.5-pro', {
   duration: 5,
+  resolution: '1080p',
   audio: false,
 });
 
 // Shorthand (backwards-compatible): estimate(model, count)
 const short = await client.estimate('bfl/flux-schnell', 5);
 ```
+
+Use `estimate()` before execution when you need deterministic product UX:
+disable submit buttons when balance is insufficient, show per-generation
+cost, calculate max affordable generations, and preview duration-,
+resolution-, or audio-sensitive pricing before creating a workload.
+
+For reporting, `usage(days?)` returns endpoint-level and provider-level
+submission/cost breakdowns, and `billing()` returns current credit balance
+and subscription state.
 
 ### `getGeneration(id)` - Fetch a single generation
 
@@ -361,6 +405,50 @@ const gen = await client.getGeneration('550e8400-e29b-41d4-a716-446655440000');
 gen.data.generation_status; // 'pending' | 'processing' | 'succeeded' | 'failed' | 'canceled'
 gen.data.generation_output_file; // string[] of output URLs (when succeeded)
 ```
+
+### `waitForGeneration(id, options?)` - Poll until terminal state
+
+Use this for scripts, demos, tests, and synchronous product flows that do
+not have a webhook receiver. Production systems with sustained volume should
+prefer webhooks.
+
+```ts
+const created = await client.generate('bfl/flux-schnell', {
+  generation_prompt: 'A baby seal plays in the Arctic',
+});
+
+const completed = await client.waitForGeneration(created.data.generation_id, {
+  timeout: 120_000, // default: 10 minutes
+  interval: 2_000, // default: 2s, minimum: 500ms
+});
+
+console.log(completed.data.generation_output_file);
+```
+
+Throws `BabySeaGenerationFailedError` when the generation reaches
+`failed` or `canceled`, and `BabySeaGenerationTimeoutError` when the
+deadline expires. Pass an `AbortSignal` in `options.signal` to cancel a
+local wait.
+
+### `generateAndWait(model, params, options?)` - Generate and wait
+
+One-call helper over `generate()` + `waitForGeneration()`.
+
+```ts
+const completed = await client.generateAndWait(
+  'bfl/flux-schnell',
+  { generation_prompt: 'A baby seal plays in the Arctic' },
+  {
+    idempotencyKey,
+    timeout: 120_000,
+  },
+);
+
+console.log(completed.data.generation_output_file);
+```
+
+Use this for demos and controlled synchronous flows. For production queues,
+web apps, and high-throughput systems, prefer `generate()` plus webhooks.
 
 ### `listGenerations(options?)` - List with pagination
 
@@ -474,8 +562,10 @@ models.data.models.forEach((m) => {
 
   if (typeof m.model_pricing === 'number') {
     console.log(m.model_identifier, m.model_pricing);
+  } else if (m.model_pricing) {
+    console.log(m.model_identifier, m.model_pricing); // resolution/audio-tier map
   } else {
-    console.log(m.model_identifier, m.model_pricing); // per-resolution map
+    console.log(m.model_identifier, 'pricing unavailable');
   }
 });
 
@@ -489,6 +579,9 @@ const providers = await client.library.providers();
 import {
   BabySea,
   BabySeaError,
+  BabySeaGenerationFailedError,
+  BabySeaGenerationTimeoutError,
+  BabySeaNetworkError,
   BabySeaRetryError,
   BabySeaTimeoutError,
 } from 'babysea';
@@ -504,7 +597,11 @@ try {
     console.error(err.message); // human-readable
     console.error(err.status); // HTTP status (402, 429, 5xx...)
     console.error(err.retryable); // boolean - safe to retry?
-    console.error(err.requestId); // unique ID for support
+    console.error(err.requestId); // request_id for support when present
+
+    // Present on multi-provider execution failures when the API includes
+    // per-provider failure details.
+    console.error(err.body.error.provider_errors);
 
     // Present on 429 responses
     if (err.rateLimit) {
@@ -517,20 +614,53 @@ try {
     // Request exceeded the configured `timeout`
   }
 
+  if (err instanceof BabySeaNetworkError) {
+    // Transport failed before a structured API response was received
+    console.error(err.attempts);
+    console.error(err.retryable);
+  }
+
   if (err instanceof BabySeaRetryError) {
     // All retry attempts exhausted
     console.error(err.attempts); // number of attempts made
     console.error(err.lastError); // the final BabySeaError
   }
+
+  if (err instanceof BabySeaGenerationFailedError) {
+    // waitForGeneration()/generateAndWait() reached failed or canceled
+    console.error(err.generation_id);
+    console.error(err.generation_error_code);
+  }
+
+  if (err instanceof BabySeaGenerationTimeoutError) {
+    // waitForGeneration()/generateAndWait() exceeded its polling deadline
+    console.error(err.generation_id);
+    console.error(err.lastStatus);
+  }
 }
 ```
+
+Every error response is structured for application logic:
+
+| Field                        | Use                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `code`                       | Stable BabySea error code, such as `BSE1004`.                          |
+| `type`                       | Machine-readable category, such as `insufficient_credits`.             |
+| `retryable`                  | Whether the failed operation can be retried safely.                    |
+| `requestId`                  | Correlation id for logs, dashboards, and support tickets when present. |
+| `rateLimit`                  | Parsed `X-RateLimit-*` and `Retry-After` metadata when present.        |
+| `body.error.provider_errors` | Per-provider failure details when multi-provider execution fails.      |
 
 ## Webhooks
 
 Receive real-time generation events on your server. BabySea signs every delivery with HMAC-SHA256 (`t=<ts>,v1=<hex>`).
 
 ```ts
-import { verifyWebhook } from 'babysea/webhooks';
+import {
+  isGenerationCompleted,
+  isGenerationFailed,
+  verifyWebhook,
+} from 'babysea/webhooks';
 
 // Next.js App Router
 export async function POST(req: Request) {
@@ -548,25 +678,43 @@ export async function POST(req: Request) {
     return new Response('Invalid signature', { status: 400 });
   }
 
-  switch (payload.webhook_event) {
-    case 'generation.completed':
-      const urls = payload.webhook_data.generation_output_file;
-      // urls ➜ string[] of output file URLs
+  if (isGenerationCompleted(payload)) {
+    const urls = payload.webhook_data.generation_output_file ?? [];
+    // urls ➜ string[] of output file URLs
+    if (urls.length > 0) {
       await saveToDatabase(payload.webhook_data.generation_id, urls);
-      break;
+    }
+  }
 
-    case 'generation.failed':
-      console.error(payload.webhook_data.generation_error);
-      break;
-
-    case 'generation.canceled':
-      // credits were automatically refunded
-      break;
+  if (isGenerationFailed(payload)) {
+    console.error(payload.webhook_data.generation_error);
   }
 
   return new Response('OK');
 }
 ```
+
+Webhook signatures use HMAC-SHA256 with an embedded timestamp and a
+default 5-minute replay window. `verifyWebhook()` uses timing-safe
+comparison and returns a typed payload. The `babysea/webhooks` entry point
+also exports type guards:
+
+- `isGenerationEvent()`
+- `isGenerationStarted()`
+- `isGenerationCompleted()`
+- `isGenerationFailed()`
+- `isGenerationCanceled()`
+- `isCreditLowBalance()`
+- `isWebhookTest()`
+
+Every webhook includes `webhook_delivery_id`; store it if your handler
+needs idempotent processing across retries.
+
+BabySea also sends informational delivery headers on webhook requests:
+`X-BabySea-Event`, `X-BabySea-Timestamp`, and
+`X-BabySea-Delivery-Id`. They are useful for logging and deduplication,
+but signature verification only requires `X-BabySea-Signature` plus the
+raw request body.
 
 ### Webhook Events
 
@@ -641,7 +789,11 @@ The SDK surfaces rate-limit metadata through `BabySeaError.rateLimit` when the A
 | `X-RateLimit-Reset`     | Unix timestamp when the current window resets |
 | `Retry-After`           | Seconds to wait before retrying after a `429` |
 
-When a response is retryable, the SDK automatically respects `Retry-After` and retries up to `maxRetries`.
+When a retryable rate-limited response includes `X-RateLimit-Limit` and `Retry-After`, the SDK respects `Retry-After` and retries up to `maxRetries`.
+
+When `Retry-After` is not present, retry delays use exponential backoff
+with full jitter, capped at 30 seconds. This spreads client retries during
+regional or upstream incidents instead of creating a thundering herd.
 
 Transient network failures (DNS resolution, connection reset, socket
 hangup, undici socket errors) are also retried under the same

@@ -111,6 +111,7 @@ export interface HealthModelProvider {
 
 export interface HealthModel {
   model_identifier: string;
+  model_type: 'image' | 'video' | 'unknown';
   model_pricing: number | undefined;
   providers: Record<string, HealthModelProvider>;
 }
@@ -144,7 +145,7 @@ export interface HealthCacheData {
 // ─── /v1/library/providers ───
 
 export interface BabySeaImplementation {
-  delivery_method: 'webhook_with_polling' | 'synchronous';
+  delivery_method: 'webhook_with_polling' | 'synchronous' | 'polling';
   cancel_method: 'prediction_cancel_api' | 'queue_cancel_api' | null;
   webhook_verification: 'hmac_sha256' | 'ed25519' | null;
   error_mapping: 'bse_error_codes';
@@ -181,7 +182,7 @@ export interface ModelSchema {
   generation_input_file: boolean;
   /** Accepted duration values in seconds (video models only). */
   generation_duration?: number[];
-  /** Supported output resolutions (resolution-priced video models only). */
+  /** Supported output resolutions (resolution-priced models only). */
   generation_resolution?: string[];
   /** Whether audio generation is supported (audio-priced video models only). */
   generation_generate_audio?: boolean;
@@ -191,11 +192,9 @@ export interface Model {
   model_type: 'image' | 'video';
   model_identifier: string;
   /**
-   * Credits per generation.
-   *
-   * - **Flat-priced models** ➜ `number` (credits per generation or per second for duration-based video models).
-   * - **Resolution-priced models** ➜ `Record<string, number>` mapping each resolution to its per-second cost.
-   * - `undefined` when no pricing entry exists for the model.
+   * Credits per generation, per second, or per pricing tier. Pricing maps use
+   * keys such as `"720p"`, `"1080p"`, `"720p_audio"`, or `"720p_noaudio"`.
+   * `undefined` means no pricing entry exists for the model.
    */
   model_pricing: number | Record<string, number> | undefined;
   model_supported_provider: string[];
@@ -297,9 +296,9 @@ export interface EstimateData {
   resolution?: string;
   cost_per_generation: number;
   cost_total_consumed: number;
-  credit_balance: number;
-  credit_balance_can_afford: boolean;
-  credit_balance_max_affordable: number;
+  credit_balance: number | null;
+  credit_balance_can_afford: boolean | null;
+  credit_balance_max_affordable: number | null;
 }
 
 // ─── /v1/content/generation/cancel/{generation_id} (POST) ───
@@ -321,48 +320,48 @@ export interface GenerationDeleteData {
 // ─── /v1/content/{generation_id} (GET) ───
 
 export interface Generation {
+  /** Model-specific `generation_*` fields can appear between input and output fields. */
+  [key: `generation_${string}`]: unknown;
+
   // Identity
   account_id: string;
-  model_identifier: string;
-  generation_provider_order: string[];
-  generation_provider_used: string | null;
-  generation_prediction_id: string | null;
   generation_id: string;
+  model_identifier?: string;
+  generation_provider_order?: string[];
+  generation_provider_used?: string | null;
+  generation_prediction_id?: string | null;
   // Status
-  generation_status:
+  generation_status?:
     | 'pending'
     | 'processing'
     | 'succeeded'
     | 'failed'
     | 'canceled';
   // Input
-  generation_prompt: string;
-  generation_ratio: string;
-  generation_output_format: string;
-  generation_output_number: number;
-  generation_input_file: string[] | null;
+  generation_prompt?: string;
+  generation_ratio?: string;
+  generation_output_format?: string;
+  generation_output_number?: number;
+  generation_input_file?: string[] | null;
   // Output
-  generation_output_file: string[] | null;
+  generation_output_file?: string[] | null;
   // Timing
-  generation_created_at: string;
-  generation_started_at: string | null;
-  generation_completed_at: string | null;
+  generation_created_at?: string;
+  generation_started_at?: string | null;
+  generation_completed_at?: string | null;
   // Metrics
-  generation_metrics_total_time: number | null;
-  generation_metrics_predict_time: number | null;
+  generation_metrics_total_time?: number | null;
+  generation_metrics_predict_time?: number | null;
   // Duration, resolution & audio (video models only)
   generation_duration?: number;
   generation_resolution?: string;
-  /**
-   * Stringified boolean - the API serializes this boolean field as `"true"` or
-   * `"false"` (same as all non-preserved primitives in generation_data).
-   */
-  generation_generate_audio?: string;
+  generation_generate_audio?: boolean;
+  generation_audio_mode?: 'audio' | 'noaudio';
   // Errors (only present on failure)
   generation_error?: string;
   generation_error_code?: string;
   // Cleanup (only present after files are removed)
-  generation_removed?: string;
+  generation_removed?: boolean;
 }
 
 // ─── /v1/content/list (GET) ───
@@ -509,12 +508,16 @@ export interface VideoGenerationParams {
   generation_duration: number;
 
   /**
-   * Output resolution. Required for resolution-priced video models.
-   * Use `client.library.models()` to check supported resolutions per model.
+   * Output resolution. Optional for resolution-priced video models; the API
+   * applies the model default when omitted. Use `client.library.models()` to
+   * check supported resolutions per model.
    */
   generation_resolution?: string;
 
-  /** Whether to generate audio. Required for audio-priced video models. */
+  /**
+   * Whether to generate audio. Optional for audio-priced video models; defaults
+   * to `false`.
+   */
   generation_generate_audio?: boolean;
 
   /** Array of public URLs for input files (e.g. image-to-video). */

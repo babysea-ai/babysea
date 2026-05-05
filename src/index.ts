@@ -29,6 +29,7 @@ export type {
   // /v1/health/cache
   HealthCacheData,
   // /v1/library/providers
+  BabySeaImplementation,
   LibraryProvidersData,
   ProviderProfile,
   // /v1/library/models

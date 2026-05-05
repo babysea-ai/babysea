@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `BabySea OSS taxonomy` in `README.md`.
 - Fix table formatting in `README.md`.
+- Documented production reliability, enterprise controls, cost-governance
+  guidance, polling helpers, typed error handling, webhook type guards,
+  and informational webhook delivery headers in `README.md`.
+- Exported the `BabySeaImplementation` provider-profile type from the
+  public package entry point.
 
 ### Changed
 
@@ -34,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   release-agnostic `<package-version>` placeholder.
 - Normalized the Apache 2.0 `LICENSE` wording and copyright notice to
   the current BabySea package format.
+- Validated the SDK type surface against the live `apps/web/app/v1` API
+  implementation and aligned response types for health models, provider
+  catalog delivery methods, estimates with nullable balance fields,
+  generation audio flags, and removed-file markers.
+- Tightened README examples and pricing notes to match the actual model
+  catalog, estimate response semantics, regional endpoints, idempotency
+  behavior, retry/backoff behavior, and webhook verification contract.
 
 ### Removed
 

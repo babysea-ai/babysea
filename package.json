@@ -1,7 +1,7 @@
 {
   "name": "babysea",
   "version": "1.4.3",
-  "description": "Open source TypeScript SDK for the BabySea execution control plane for generative media.",
+  "description": "Official SDK for the BabySea execution control plane for generative media.",
   "keywords": [
     "babysea",
     "open-source",
