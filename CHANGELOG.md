@@ -9,13 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `BabySea OSS taxonomy` in `README.md`.
 - Fix table formatting in `README.md`.
 - Documented production reliability, enterprise controls, cost-governance
   guidance, polling helpers, typed error handling, webhook type guards,
   and informational webhook delivery headers in `README.md`.
 - Exported the `BabySeaImplementation` provider-profile type from the
   public package entry point.
+- Added a 30-second summary, direct-provider comparison, SDK reliability contract, framework examples index, and incident-handling documentation.
+- Added `SECURITY.md` guidance for API keys, browser usage, scoped keys, webhook verification, idempotency, logging boundaries, and vulnerability disclosure.
+- Added framework examples for Next.js App Router generation/webhooks, Vercel Edge, Cloudflare Workers, backend scoped-key generation, Node queue workers, and browser read-only/status flows.
+- Added runtime tests for idempotency headers, safe retry behavior, non-idempotent network failure handling, ESM/CJS exports, and webhook HMAC verification.
+- Added `typecheck:examples`, `test`, `exports:check`, `pack:dry-run`, and `audit:prod` package scripts.
+- Added standalone SDK repository workflows under `.github/workflows/` for CodeQL and SDK publish checks.
 
 ### Changed
 
@@ -46,6 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tightened README examples and pricing notes to match the actual model
   catalog, estimate response semantics, regional endpoints, idempotency
   behavior, retry/backoff behavior, and webhook verification contract.
+- Hardened generation examples to require caller-supplied durable idempotency keys, validate JSON bodies, validate prompts, and reject invalid idempotency-key formats before calling `client.generate()`.
+- Wired SDK `check` to run lint, package typecheck, example typecheck, runtime tests, and Prettier.
+- Corrected the monorepo convenience script to call the existing SDK npm publish helper.
+- Typed runtime test helpers and header assertions so SDK JavaScript tests remain clean under editor `checkJs` diagnostics.
+- Kept the SDK README focused on the production SDK by removing primitive taxonomy, primitive architecture framing, and primitive cross-promotion from the SDK package docs.
+
+### Validated
+
+- Ran SDK lint, typecheck, example typecheck, runtime tests, build, Prettier, and package dry-run.
+- Confirmed SDK examples type-check through an examples-specific TypeScript project and local ambient shim without adding a nested workspace package.
 
 ### Removed
 

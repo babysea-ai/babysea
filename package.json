@@ -1,7 +1,7 @@
 {
   "name": "babysea",
   "version": "1.4.3",
-  "description": "Official SDK for the BabySea execution control plane for generative media.",
+  "description": "Production TypeScript SDK for the BabySea execution control plane for generative media. One API, one schema, one lifecycle across image and video inference providers.",
   "keywords": [
     "babysea",
     "open-source",
@@ -56,8 +56,11 @@
   },
   "files": [
     "dist",
+    "docs",
+    "examples",
     "CHANGELOG.md",
     "README.md",
+    "SECURITY.md",
     "LICENSE",
     "socket.json"
   ],
@@ -75,8 +78,13 @@
     "clean": "rm -rf .turbo node_modules dist",
     "format": "prettier --check \"**/*.{mjs,ts,md,json}\"",
     "lint": "eslint \"src/**/*.ts\"",
+    "test": "npm run build && node --test \"test/*.mjs\"",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run format",
+    "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
+    "exports:check": "npm run build && node --test test/exports.test.mjs",
+    "pack:dry-run": "npm pack --dry-run",
+    "audit:prod": "npm audit --omit=dev",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run typecheck:examples && pnpm run test && pnpm run format",
     "prepublishOnly": "npm run check && npm run build"
   },
   "devDependencies": {

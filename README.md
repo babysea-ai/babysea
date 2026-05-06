@@ -8,7 +8,7 @@ One API, one schema, one lifecycle across image and video inference providers.**
 <br/>
 
 [![Open Source](https://img.shields.io/badge/open%20source-BabySea-48d1cc.svg)](https://babysea.ai)
-[![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#babysea-oss-taxonomy)
+[![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#what-this-is)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-production-2ea44f.svg)](#status)
 [![npm version](https://img.shields.io/npm/v/babysea.svg?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/babysea)
@@ -25,33 +25,26 @@ One API, one schema, one lifecycle across image and video inference providers.**
 
 <br/>
 
-_Works across Node.js, Edge runtimes (Vercel, Cloudflare Workers), and browsers._
+_Works across Node.js, Edge runtimes, and browsers._
 
-_Runtime detection is built in: every request carries SDK/runtime metadata so BabySea can correlate behavior by SDK version and deployment target without collecting prompts or request bodies._
+_Every request carries SDK/runtime metadata without collecting prompts or request bodies._
 
 </div>
-
----
-
-## BabySea OSS taxonomy
-
-BabySea open source projects are organized into three categories:
-
-[![BabySea OSS Primitives](https://img.shields.io/badge/oss%20primitives-BabySea-ea580c.svg)](#babysea-oss-taxonomy)
-[![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#babysea-oss-taxonomy)
-[![BabySea OSS Starters](https://img.shields.io/badge/oss%20starters-BabySea-0284c7.svg)](#babysea-oss-taxonomy)
-
-| Category           | Description                                                                                                                                                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OSS Primitives** | Production-derived infrastructure patterns extracted from BabySea's execution control plane. These projects isolate one hard system invariant at a time, such as provider routing, credit settlement, idempotency, failover, reconciliation, or operational safety. |
-| **SDKs**           | Typed developer entry points into BabySea's execution control plane. SDKs provide application developers with a clean interface for creating, tracking, managing, and settling generative-media workloads without rebuilding provider-specific lifecycle logic.     |
-| **OSS Starters**   | Deployable reference applications that help builders adopt BabySea patterns quickly. Starters combine product UI, auth, billing, storage, rate limits, and BabySea SDK execution into working examples optimized for onboarding and implementation.                 |
 
 ---
 
 ## What this is
 
 `babysea` is the TypeScript SDK for BabySea's execution control plane. It gives applications a single typed entry point into generative media execution: estimate cost, submit a workload, receive a generation id, verify webhooks, observe health, and react to lifecycle events.
+
+**30-second version:** `babysea` is the typed TypeScript SDK into BabySea's
+generative-media execution control plane: create, estimate, wait, cancel, verify
+webhooks, inspect usage, and handle structured errors without wiring directly
+to provider APIs.
+
+BabySea is an execution control plane for generative media. This SDK does not
+call provider APIs directly; it talks to BabySea's control plane, which handles
+provider selection, failover, billing, and lifecycle state.
 
 BabySea standardizes how image and video workloads run across inference providers. Provider selection, failover, billing, and observability are managed by the platform; provider selection adapts over time based on real execution outcomes.
 
@@ -92,6 +85,23 @@ The platform behind the SDK adapts provider selection over time based on real ex
 
 BabySea treats provider failure as a normal condition and handles it at the system level. Developers define a workload once; the execution control plane decides how to run it.
 
+## Why not call providers directly?
+
+Direct provider integration works for prototypes, but production generative-media
+systems need an execution layer around the model call.
+
+| Direct provider integration                                      | BabySea execution control plane                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| One request schema per provider and model.                       | One typed generation request lifecycle.                                                     |
+| Provider-specific polling, callbacks, and status names.          | Unified lifecycle reads, cancellation, deletion, and webhooks.                              |
+| Outage handling, retry policy, and failover are app code.        | Provider routing, retries, and failover are platform behavior.                              |
+| Cost estimation and billing coupling are rebuilt per app.        | Cost preview, credit balance, usage, and billing surfaces are typed endpoints.              |
+| Incident debugging depends on provider-specific error shapes.    | Structured `BabySeaError` codes, request IDs, retryability, and optional `provider_errors`. |
+| Browser keys and backend keys need custom least-privilege rules. | Scoped API key presets separate generate-only, read-only, and monitoring access.            |
+
+Use direct provider APIs when you want a single provider experiment. Use BabySea
+when the product needs a reliable multi-provider execution control plane.
+
 ## Runtime contract
 
 | Layer               | SDK surface                                                              | Runtime responsibility                                                                                        |
@@ -119,6 +129,17 @@ The SDK is intentionally small, but it is built for production execution paths:
 | Operational visibility   | `health.*`, `library.*`, `usage()`, `billing()`, and `status()` expose platform, model, provider, account, and usage state through one client.         |
 
 For high-throughput production systems, prefer `generate()` plus webhooks. Use `generateAndWait()` for demos, CLIs, tests, and synchronous workflows.
+
+## SDK reliability contract
+
+| Contract                                            | What to do in your application                                                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Safe retries require idempotency keys for writes.   | Pass `idempotencyKey` on `generate()`/`generateAndWait()` when a network retry could otherwise create duplicate work.    |
+| Webhook verification requires the raw request body. | Read the body as text/bytes before JSON parsing and verify `X-BabySea-Signature` with `verifyWebhook()`.                 |
+| Browser generation should use narrow scoped keys.   | Keep full-access and long-lived write keys server-side; use scoped keys for browser status/read-only flows.              |
+| `generateAndWait()` is a convenience path.          | Use it for demos, CLIs, tests, and controlled flows; use `generate()` plus webhooks for production throughput.           |
+| Regional endpoints pin API traffic.                 | Set `region` to `us`, `eu`, or `jp`; upstream provider behavior still depends on provider availability in that region.   |
+| Structured errors are the incident interface.       | Log `requestId`, `code`, `type`, `retryable`, rate-limit metadata, and any `provider_errors` for support and dashboards. |
 
 ## Security and enterprise controls
 
@@ -149,8 +170,6 @@ You can:
 - build your own applications and tooling on top of it
 
 The SDK is open. The BabySea execution control plane remains the service layer behind it.
-
-> **Curious how adaptive provider selection actually works?** The data layer that drives it is open-sourced separately as [`adaptive-island`](https://github.com/babysea-ai/adaptive-island), built on Databricks (Lakeflow + Delta Lake + MLflow + Unity Catalog + Mosaic AI Model Serving).
 
 ## Design principle
 
@@ -207,6 +226,15 @@ console.log(result.data.generation_id);
 ```
 
 > Generations are async - you receive a `generation_id` immediately. Use `getGeneration()`, `waitForGeneration()`, or webhooks to handle completion. For production throughput, prefer webhooks.
+
+## Framework examples
+
+- [examples/nextjs-app-router/](examples/nextjs-app-router/) - server generation route plus raw-body webhook verification.
+- [examples/vercel-edge/](examples/vercel-edge/) - Edge runtime generation route.
+- [examples/cloudflare-workers/](examples/cloudflare-workers/) - Cloudflare Worker using platform `fetch` and `crypto.subtle`.
+- [examples/node-queue-worker/](examples/node-queue-worker/) - backend worker with job-id idempotency keys.
+- [examples/browser-readonly/](examples/browser-readonly/) - browser status reads with a narrow scoped key.
+- [examples/scoped-key-backend/](examples/scoped-key-backend/) - generate-only backend key pattern.
 
 ## Models & Pricing
 
@@ -574,6 +602,10 @@ const providers = await client.library.providers();
 ```
 
 ## Error Handling
+
+For incident-oriented recipes covering 429s, insufficient credits, provider
+failures, generation polling timeouts, and exhausted retries, see
+[docs/incident-handling.md](docs/incident-handling.md).
 
 ```ts
 import {
