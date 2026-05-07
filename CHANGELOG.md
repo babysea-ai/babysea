@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added runtime tests for idempotency headers, safe retry behavior, non-idempotent network failure handling, ESM/CJS exports, and webhook HMAC verification.
 - Added `typecheck:examples`, `test`, `exports:check`, `pack:dry-run`, and `audit:prod` package scripts.
 - Added standalone SDK repository workflows under `.github/workflows/` for CodeQL and SDK publish checks.
+- Added README workflow badges for the standalone CodeQL and SDK Publish Check workflows.
+- Added Sentry code-guard documentation and a README badge for the public `babysea-ai/babysea` SDK repository; no Sentry SDK, DSN, tracing, error-reporting client, or runtime telemetry is bundled.
+- Added `scripts/sentry-project-check.mjs`, a `sentry:check` package script, a README badge, ignored local `.sentryclirc` support, and a scheduled `Sentry Project Check` workflow. The workflow reads Sentry org/project configuration from GitHub Actions secrets, verifies the configured project slug, active status, `other` platform, ownership, and Code Guard rules, and does not add runtime tracking.
 
 ### Changed
 

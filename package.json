@@ -84,6 +84,7 @@
     "exports:check": "npm run build && node --test test/exports.test.mjs",
     "pack:dry-run": "npm pack --dry-run",
     "audit:prod": "npm audit --omit=dev",
+    "sentry:check": "node scripts/sentry-project-check.mjs",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run typecheck:examples && pnpm run test && pnpm run format",
     "prepublishOnly": "npm run check && npm run build"
   },

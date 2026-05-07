@@ -21,6 +21,12 @@ Include:
 - Use `Idempotency-Key` for generation writes that may be retried.
 - Log `request_id`, structured error code, and retryability metadata instead of prompts, secret URLs, API keys, or webhook secrets.
 
+## Sentry code guard
+
+The public SDK repository is connected to a private, repository-specific Sentry project for repository ownership, Seer-assisted review, and issue routing. The Sentry organization slug and project slug are intentionally not committed to this public repo.
+
+This repo keeps Sentry as a repository guardrail, not runtime telemetry. It ships `scripts/sentry-project-check.mjs` and a scheduled `Sentry Project Check` workflow that verifies the configured project slug, active status, `other` platform, and Code Guard ownership rules using GitHub Actions secrets only. Use `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` as repository secrets. Local `.sentryclirc` files are ignored by git. No Sentry SDK, DSN, tracing, error-reporting client, or Sentry runtime telemetry is included in this package; SDK diagnostic headers remain limited to package/runtime metadata and never include prompts or request bodies.
+
 ## Supported versions
 
 Security fixes target the latest published `babysea` SDK version. Upgrade promptly when security releases are published.

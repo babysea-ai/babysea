@@ -7,11 +7,15 @@ One API, one schema, one lifecycle across image and video inference providers.**
 
 <br/>
 
+[![npm version](https://img.shields.io/npm/v/babysea.svg?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/babysea)
 [![Open Source](https://img.shields.io/badge/open%20source-BabySea-48d1cc.svg)](https://babysea.ai)
 [![BabySea SDKs](https://img.shields.io/badge/sdks-BabySea-4f46e5.svg)](#what-this-is)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-production-2ea44f.svg)](#status)
-[![npm version](https://img.shields.io/npm/v/babysea.svg?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/babysea)
+[![CodeQL](https://github.com/babysea-ai/babysea/actions/workflows/codeql.yml/badge.svg)](https://github.com/babysea-ai/babysea/actions/workflows/codeql.yml)
+[![SDK Publish Check](https://github.com/babysea-ai/babysea/actions/workflows/publish-check.yml/badge.svg)](https://github.com/babysea-ai/babysea/actions/workflows/publish-check.yml)
+[![Sentry](https://img.shields.io/badge/Sentry-code%20guard-362D59.svg?logo=sentry&logoColor=white)](https://sentry.io)
+[![Sentry Project Check](https://github.com/babysea-ai/babysea/actions/workflows/sentry-check.yml/badge.svg)](https://github.com/babysea-ai/babysea/actions/workflows/sentry-check.yml)
 
 <br/>
 
@@ -143,14 +147,15 @@ For high-throughput production systems, prefer `generate()` plus webhooks. Use `
 
 ## Security and enterprise controls
 
-| Control                 | Details                                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Scoped API keys         | Use `generate_only`, `read_only`, `monitor_only`, or custom scopes to enforce least privilege. Keep write-capable keys server-side. |
-| Webhook verification    | `verifyWebhook()` validates HMAC-SHA256 signatures with timestamp replay protection and timing-safe comparison.                     |
-| Idempotent generation   | `Idempotency-Key` prevents duplicate generations during safe retries and exposes replay state in the SDK response.                  |
-| Regional endpoints      | `us`, `eu`, and `jp` endpoints keep requests pinned to the region you configure.                                                    |
-| No runtime dependencies | No provider SDKs, queue clients, storage clients, or framework adapters are bundled.                                                |
-| Minimal SDK telemetry   | SDK headers contain package/runtime metadata only; prompts, request bodies, and PII are not added to telemetry headers.             |
+| Control                 | Details                                                                                                                                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scoped API keys         | Use `generate_only`, `read_only`, `monitor_only`, or custom scopes to enforce least privilege. Keep write-capable keys server-side.                                                                         |
+| Webhook verification    | `verifyWebhook()` validates HMAC-SHA256 signatures with timestamp replay protection and timing-safe comparison.                                                                                             |
+| Idempotent generation   | `Idempotency-Key` prevents duplicate generations during safe retries and exposes replay state in the SDK response.                                                                                          |
+| Regional endpoints      | `us`, `eu`, and `jp` endpoints keep requests pinned to the region you configure.                                                                                                                            |
+| No runtime dependencies | No provider SDKs, queue clients, storage clients, or framework adapters are bundled.                                                                                                                        |
+| Minimal SDK telemetry   | SDK headers contain package/runtime metadata only; prompts, request bodies, and PII are not added to telemetry headers.                                                                                     |
+| Sentry code guard       | The public SDK repo uses a private, repository-specific Sentry project for ownership, Seer, and scheduled project-wiring checks; no Sentry runtime SDK, DSN, tracing, or error-reporting client is bundled. |
 
 Browser runtime support is available, but production generation writes should normally run from your backend with a server-side API key. If you call BabySea from browser code, issue the narrowest possible scoped key for that use case.
 
